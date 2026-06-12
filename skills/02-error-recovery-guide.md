@@ -61,11 +61,15 @@ This happens when old drivers conflict, or the `nouveau` open-source driver is a
    sudo lsof -i :8080
    sudo netstat -tulpn | grep :8080
    ```
-2. If the process is safe to terminate (like an old zombie node or python process), kill it:
-   ```bash
-   sudo kill -9 <PID>
-   ```
-3. Retry: `sudo ./master-deploy.sh app`
+2. **If the process is a idle/orphan/residual process:**
+   Safely kill it (`sudo kill -9 <PID>`) and retry deployment.
+3. **If the process is an active, existing service belonging to the user:**
+   (e.g., the user already has a Postgres database, Redis, or Portainer running on that port).
+   **DO NOT SILENTLY OVERRIDE OR KILL IT.** You MUST pause deployment, alert the user of the conflict, and explicitly offer them the following choices:
+   - **Option A (Coexist - Port+1 Strategy):** Shift our new container's port to `Port+1` (e.g., create/modify `.env` with `PORTAINER_PORT=9001`) so both services can run simultaneously.
+   - **Option B (Reuse Existing):** Do not deploy our version of the container, and instead configure the rest of our AI stack to connect to the user's existing service (by updating DB connection strings in our `.env` files).
+   - **Option C (Takeover):** Ask the user if it's safe to kill the old service so our stack can occupy the default port.
+4. **Wait for the user's explicit decision** before taking action and continuing with `sudo ./master-deploy.sh app`.
 
 ## 5. Script Not Executable / `command not found` / `Permission denied`
 **Symptom:** Running `./master-deploy.sh system` (or any other `./xxx.sh` in the project) returns:

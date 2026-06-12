@@ -1,10 +1,10 @@
-# OpenGenie AI Deployment: Full Purge Procedure
+# OpenGenie AI Deployment: Uninstallation Procedure
 
 ## Purpose
-This skill covers the complete teardown of the OpenGenie stack and all its dependencies (Docker, NVIDIA drivers, volumes, configs).
-Use this during training loops or when a completely clean reinstall is required.
+This skill covers the complete and safe teardown of the OpenGenie stack. It removes containers, project data volumes, python virtual environments, background services, and snap packages without affecting the host's Docker engine or NVIDIA drivers.
+Use this when you want to uninstall the project but keep the server intact.
 
-**Trigger phrase:** User says `"full purge and reinstall"` or deployment is broken beyond recovery.
+**Trigger phrase:** User says `"uninstall this project"`, `"remove the stack"`, or `"full purge"`.
 
 ---
 
@@ -48,41 +48,28 @@ done
 
 ---
 
-## Phase 3: Purge Docker Completely
+## Phase 3: Remove Background Services & Snap Packages
+
+Remove the AI Core snap packages and background monitoring services installed by the stack:
 
 ```bash
-sudo apt-get purge -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-sudo apt-get autoremove -y
-sudo rm -rf /var/lib/docker
-sudo rm -rf /etc/docker
-sudo rm -f /usr/local/bin/docker-compose
-```
+sudo systemctl stop tiger-monitor.service 2>/dev/null || true
+sudo systemctl disable tiger-monitor.service 2>/dev/null || true
+sudo rm -f /etc/systemd/system/tiger-monitor.service
 
-Verify Docker is gone:
-```bash
-command -v docker && echo "DOCKER_STILL_PRESENT" || echo "DOCKER_REMOVED_OK"
+sudo snap remove lemonade-server 2>/dev/null || true
+sudo snap remove lemonade 2>/dev/null || true
 ```
 
 ---
 
-## Phase 4: Purge NVIDIA Drivers (if reinstalling GPU stack)
+## Phase 4: Clean Up Python Virtual Environments & Large Images
+
+Remove the massive Docling Python environment and any dangling Docker images associated with the stack:
 
 ```bash
-sudo apt-get purge -y '*nvidia*'
-sudo apt-get purge -y '*cuda*'
-sudo apt-get autoremove -y
-sudo apt-get autoclean
-```
-
-Remove leftover NVIDIA container toolkit configs:
-```bash
-sudo rm -f /etc/docker/daemon.json
-sudo rm -rf /etc/nvidia-container-runtime
-```
-
-Verify drivers are gone:
-```bash
-dpkg -l | grep -i nvidia && echo "NVIDIA_PKGS_STILL_PRESENT" || echo "NVIDIA_REMOVED_OK"
+sudo rm -rf deployments/nvidia-compose-stack/05-rag-stack-docling-qdrant-mosquitto/.venv
+sudo docker rmi ghcr.io/docling-project/docling-serve-cu128:latest 2>/dev/null || true
 ```
 
 ---
@@ -95,43 +82,19 @@ Reset the agent's memory so the next invocation starts from `PRISTINE`:
 # $PROJECT_ROOT should already be set per 00-master-orchestrator.md §2.0.
 # If not, run the locator block from there first.
 rm -f "$PROJECT_ROOT/.agent-state.json"
+rm -f "$PROJECT_ROOT/.agent-state.bak.json"
 rm -f "$PROJECT_ROOT/deployments/nvidia-compose-stack/00-pre-flight-advisor/tiger-tuning.env"
-rm -f "$PROJECT_ROOT/deployments/amd-compose-stack/00-pre-flight-advisor/tiger-tuning.env"
-rm -f "$PROJECT_ROOT/deployments/arm64-compose-stack/00-pre-flight-advisor/tiger-tuning.env"
+rm -f "$PROJECT_ROOT/deployments/nvidia-compose-stack/*/.env"
 ```
 
 ---
-
-## Phase 6: Reboot to Clear Kernel Modules
-
-```bash
-sudo reboot
-```
 
 **STOP and print this exact message to the user:**
 
 ---
-🧹 **Full purge complete. The system is clean.**
+🧹 **Uninstallation complete. The OpenGenie AI Stack has been safely removed.**
 
-The machine is rebooting to clear all kernel modules.
+All project containers, volumes, background services, and state files are gone. Your Docker engine and NVIDIA drivers remain intact.
 
-After restart:
-1. SSH back into the machine.
-2. Start a new conversation and say: **"start fresh installation"**
-
-I will start the fresh installation from the beginning.
-
+If you wish to reinstall later, simply say: **"start fresh installation"**
 ---
-
----
-
-## Post-Purge Verification (Run after reboot, before reinstalling)
-
-```bash
-# These should ALL return "not found" / errors — confirming a clean slate
-command -v docker && echo "DOCKER_FOUND (unexpected)" || echo "Docker: clean ✅"
-command -v nvidia-smi && echo "NVIDIA_SMI_FOUND (unexpected)" || echo "NVIDIA SMI: clean ✅"
-ls /var/lib/docker 2>/dev/null && echo "Docker data still exists (unexpected)" || echo "Docker data: clean ✅"
-```
-
-Only proceed with reinstall if all three show clean.

@@ -20,10 +20,11 @@ VRAM="0"
 
 if command -v nvidia-smi &>/dev/null; then
     GPU_TYPE="NVIDIA"
-    VRAM=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits | head -n 1)
+    # Use awk to sum all VRAM lines without closing the pipe early, preventing SIGPIPE crashes in multi-GPU setups.
+    VRAM=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits | awk '{sum+=$1} END {print sum}')
 elif command -v rocm-smi &>/dev/null; then
     GPU_TYPE="AMD"
-    VRAM=$(rocm-smi --showmeminfo vram --json | grep -oP '"size": \K\d+' | head -n 1 || echo "0")
+    VRAM=$(rocm-smi --showmeminfo vram --json | grep -oP '"size": \K\d+' | awk '{sum+=$1} END {print sum}' || echo "0")
     VRAM=$((VRAM / 1024 / 1024)) # Convert to MB
 fi
 

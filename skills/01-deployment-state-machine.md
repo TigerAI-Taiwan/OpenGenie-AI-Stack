@@ -131,6 +131,8 @@ Combine these results with `.agent-state.json` to identify your exact state belo
    4. Tell me **"env ready"** and I will verify.
    ---
 
+   > ⚠️ **Architecture Specific Rule:** The Lemonade module (`06-ai-core-lemonade`) is an **AMD-exclusive core component**. When deploying on NVIDIA or ARM64 environments, the deployment script will dynamically skip it. You do not need to configure Lemonade-related variables (like `LEMONADE_API_KEY`) unless deploying on an AMD machine.
+
    After the user says "env ready", verify no `CHANGE_ME` values remain AND pin the Lemonade PPA version (this one is safe — it's not a secret):
    ```bash
    # Pin Lemonade PPA version to the only release currently published on Launchpad.
