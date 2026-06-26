@@ -41,9 +41,10 @@ usage() {
 
 prep_rag_env() {
     LOG " Configuring RAG environment..."
-    local RAG_BASE=${BASE_DIR:-/opt/tigerai}
+    local RAG_BASE=${BASE_DIR:-/home/wrt/TigerAI}
     sudo mkdir -p "$RAG_BASE/docling" "$RAG_BASE/qdrant" "$RAG_BASE/mosquitto/config" "$RAG_BASE/mosquitto/data" "$RAG_BASE/mosquitto/log"
-    sudo chown -R "${SUDO_USER:-wrt}":"${SUDO_USER:-wrt}" "$RAG_BASE/docling" "$RAG_BASE/qdrant"
+    sudo chown -R 1001:1001 "$RAG_BASE/docling"          # docling-serve container runs as UID 1001
+    sudo chown -R "${SUDO_USER:-wrt}":"${SUDO_USER:-wrt}" "$RAG_BASE/qdrant"
     sudo chown -R 1883:1883 "$RAG_BASE/mosquitto"
     
     if [ ! -f "$RAG_BASE/mosquitto/config/mosquitto.conf" ]; then

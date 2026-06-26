@@ -195,6 +195,22 @@ ROT
 # --- 3) Logic Execution ---
 [ "$(id -u)" -ne 0 ] && ERROR "Please run with sudo."
 
+# --- AMD GPU Guard: lemonade is AMD-only; skip on non-AMD hosts ---
+detect_amd_gpu() {
+    # Primary: ROCm kernel interface
+    [ -e /dev/kfd ] && return 0
+    # Fallback: PCI enumeration
+    if command -v lspci >/dev/null 2>&1 && lspci 2>/dev/null | grep -iqE 'VGA.*(AMD|ATI)|Display.*(AMD|ATI)|3D.*(AMD|ATI)'; then
+        return 0
+    fi
+    return 1
+}
+
+if ! detect_amd_gpu; then
+    LOG "No AMD GPU detected (lemonade is AMD-only). Skipping lemonade deployment on this host."
+    exit 0
+fi
+
 case "$1" in
     all)
         install_snap

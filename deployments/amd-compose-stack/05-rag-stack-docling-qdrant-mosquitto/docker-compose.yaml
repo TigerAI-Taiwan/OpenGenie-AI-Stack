@@ -4,7 +4,7 @@ services:
     container_name: mosquitto
     restart: always
     healthcheck:
-      test: ["CMD-SHELL", "mosquitto_pub -h localhost -p 1883 -t healthcheck/ping -m ping || exit 1"]
+      test: ["CMD-SHELL", "mosquitto_pub -h localhost -p 1883 -u ${MQTT_USERNAME:-user} -P ${MQTT_PASSWORD:-CHANGE_ME} -t healthcheck/ping -m ping"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -27,16 +27,16 @@ services:
 
   docling:
     image: ${DOCLING_IMAGE:-ghcr.io/docling-project/docling-serve-cpu:latest}
-    container_name: docling-rocm
+    container_name: docling
     restart: always
     healthcheck:
-      test: ["CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:5001/health')\""]
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5001/health')"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 120s
     ports:
-      - "5001:5001"
+      - "${HTTP_DOCLING_PORT:-5001}:5001"
     networks:
       - ai_stack_net
     shm_size: ${DOCLING_SHM:-16gb}
@@ -52,6 +52,7 @@ services:
       - OMP_NUM_THREADS=40
       - OCR_STRATEGY=auto
       - DOCLING_SERVE_MAX_SYNC_WAIT=9000
+      - DOCLING_SERVE_ENABLE_UI=true
     extra_hosts:
       - "host.docker.internal:host-gateway"
     logging:
@@ -61,11 +62,11 @@ services:
         max-file: "3"
 
   qdrant:
-    image: ${QDRANT_IMAGE:-qdrant/qdrant:latest}
+    image: ${QDRANT_IMAGE:-qdrant/qdrant:gpu-amd-latest}
     container_name: qdrant
     restart: always
     healthcheck:
-      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/localhost/6333; printf \"GET /healthz HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n\" >&3; grep -q \"200 OK\" <&3'"]
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/6333; printf 'GET /healthz HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3; grep -q '200 OK' <&3"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -75,12 +76,17 @@ services:
       - "6334:6334"
     networks:
       - ai_stack_net
+    devices:
+      - /dev/kfd:/dev/kfd
+      - /dev/dri:/dev/dri
     volumes:
-      - qdrant_storage:/qdrant/storage
+      - ${BASE_DIR:-/home/wrt/TigerAI}/qdrant:/qdrant/storage
+      - /usr/lib/x86_64-linux-gnu/dri:/usr/lib/x86_64-linux-gnu/dri:ro
+      - /usr/share/vulkan/icd.d:/usr/share/vulkan/icd.d:ro
     environment:
-      - QDRANT__STORAGE__PERFORMANCE__MAX_SEARCH_THREADS=40
+      - QDRANT__STORAGE__PERFORMANCE__MAX_SEARCH_THREADS=${QDRANT_MAX_THREADS:-4}
       - QDRANT__STORAGE__PERFORMANCE__OPTIMIZER_MAX_THREADS=4
-      - QDRANT__LOG_LEVEL=info
+      - QDRANT__GPU__INDEXING=1
     extra_hosts:
       - "host.docker.internal:host-gateway"
     logging:
@@ -92,6 +98,3 @@ services:
 networks:
   ai_stack_net:
     external: true
-
-volumes:
-  qdrant_storage:

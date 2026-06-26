@@ -10,10 +10,10 @@
 | 3000 | Grafana | grafana | HTTP | Public |
 | 3100 | Loki | loki | HTTP | Internal |
 | 3838 | WUD | wud | HTTP | Public |
-| 5001 | Docling | docling-nvidia | HTTP | Internal |
+| 5001 | Docling | docling | HTTP | Internal |
 | 5678 | n8n | n8n-main | HTTP | Public |
-| 6333 | Qdrant HTTP | qdrant-nvidia | HTTP | Internal |
-| 6334 | Qdrant gRPC | qdrant-nvidia | gRPC | Internal |
+| 6333 | Qdrant HTTP | qdrant | HTTP | Internal |
+| 6334 | Qdrant gRPC | qdrant | gRPC | Internal |
 | 8000 | pgAdmin | pgadmin | HTTP | Admin |
 | 8080 | OpenWebUI | openwebui-main | HTTP | Public |
 | 8088 | cAdvisor | cadvisor | HTTP | Public |
@@ -148,8 +148,8 @@ ai_stack_net (external: true)
 ├── n8n-main (hostname: n8n-main)
 ├── n8n-worker (hostname: n8n-worker, scalable via --scale)
 ├── mosquitto (hostname: mosquitto)
-├── docling-nvidia (hostname: docling-nvidia)
-├── qdrant-nvidia (hostname: qdrant-nvidia)
+├── docling (hostname: docling)
+├── qdrant (hostname: qdrant)
 ├── prometheus (hostname: prometheus)
 ├── grafana (hostname: grafana)
 ├── loki (hostname: loki)
@@ -168,7 +168,7 @@ All containers can resolve each other by container name or hostname:
 postgres:5432
 redis:6379
 ollama:11434
-qdrant-nvidia:6333
+qdrant:6333
 # etc.
 ```
 
@@ -259,10 +259,10 @@ cd 05-rag-stack-docling-qdrant-mosquitto
 docker compose up -d mosquitto
 
 # 5.2 Qdrant (Independent)
-docker compose up -d qdrant-nvidia
+docker compose up -d qdrant
 
 # 5.3 Docling (Optional - may fail on incompatible CPUs)
-docker compose up -d docling-nvidia
+docker compose up -d docling
 # OR skip if CPU incompatible
 ```
 
@@ -528,8 +528,8 @@ cat /proc/cpuinfo | grep flags | head -1
 
 # If missing, skip Docling:
 cd 05-rag-stack-docling-qdrant-mosquitto
-docker compose up -d mosquitto qdrant-nvidia
-# Skip: docker compose up -d docling-nvidia
+docker compose up -d mosquitto qdrant
+# Skip: docker compose up -d docling
 ```
 
 ---

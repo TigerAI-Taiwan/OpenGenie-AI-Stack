@@ -51,7 +51,8 @@ prep_rag_env() {
     local _BASE="${BASE_DIR:-/home/wrt/TigerAI}"
     local _MQTT="${MQTT_HOST_DIR:-$_BASE/mosquitto}"
     sudo mkdir -p "$_BASE/docling" "$_BASE/qdrant" "$_MQTT/config" "$_MQTT/data" "$_MQTT/log"
-    sudo chown -R "${SUDO_USER:-wrt}":"${SUDO_USER:-wrt}" "$_BASE/docling" "$_BASE/qdrant"
+    sudo chown -R 1001:1001 "$_BASE/docling"          # docling-serve container runs as UID 1001
+    sudo chown -R "${SUDO_USER:-wrt}":"${SUDO_USER:-wrt}" "$_BASE/qdrant"
     sudo chown -R 1883:1883 "$_MQTT"
     if [ ! -f "$_MQTT/config/mosquitto.conf" ]; then
       echo -e "persistence true\npersistence_location /mosquitto/data/\nlog_dest file /mosquitto/log/mosquitto.log\nlistener 1883\nallow_anonymous true" | sudo tee "$_MQTT/config/mosquitto.conf" >/dev/null

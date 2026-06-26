@@ -4,7 +4,7 @@ services:
     container_name: n8n-main
     restart: always
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:5678/healthz"]
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:5678/healthz || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -24,7 +24,7 @@ services:
       - DB_POSTGRESDB_PORT=5432
       - DB_POSTGRESDB_USER=${DB_POSTGRESDB_USER:-adm}
       - DB_POSTGRESDB_PASSWORD=${DB_POSTGRESDB_PASSWORD:-CHANGE_ME}
-      - DB_POSTGRESDB_SCHEMA=${DB_POSTGRESDB_SCHEMA:-public}
+      - DB_POSTGRESDB_SCHEMA=${DB_POSTGRESDB_SCHEMA:-n8n}
       - QUEUE_MODE=${QUEUE_MODE:-redis}
       - EXECUTIONS_MODE=queue
       - QUEUE_BULL_REDIS_HOST=${REDIS_HOST:-redis}
@@ -58,7 +58,7 @@ services:
     restart: always
     command: worker
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:5678/healthz"]
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:5678/healthz || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -75,7 +75,7 @@ services:
       - DB_POSTGRESDB_PORT=5432
       - DB_POSTGRESDB_USER=${DB_POSTGRESDB_USER:-adm}
       - DB_POSTGRESDB_PASSWORD=${DB_POSTGRESDB_PASSWORD:-CHANGE_ME}
-      - DB_POSTGRESDB_SCHEMA=${DB_POSTGRESDB_SCHEMA:-public}
+      - DB_POSTGRESDB_SCHEMA=${DB_POSTGRESDB_SCHEMA:-n8n}
       - QUEUE_MODE=${QUEUE_MODE:-redis}
       - EXECUTIONS_MODE=queue
       - QUEUE_BULL_REDIS_HOST=${REDIS_HOST:-redis}

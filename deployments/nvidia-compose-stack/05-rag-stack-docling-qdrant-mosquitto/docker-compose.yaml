@@ -4,7 +4,7 @@ services:
     container_name: mosquitto
     restart: always
     healthcheck:
-      test: ["CMD-SHELL", "mosquitto_pub -h localhost -p 1883 -t healthcheck/ping -m ping || exit 1"]
+      test: ["CMD-SHELL", "mosquitto_pub -h localhost -p 1883 -u ${MQTT_USERNAME:-user} -P ${MQTT_PASSWORD:-CHANGE_ME} -t healthcheck/ping -m ping"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -25,10 +25,10 @@ services:
 
   docling:
     image: ${DOCLING_IMAGE:-ghcr.io/docling-project/docling-serve-cu128:latest}
-    container_name: docling-nvidia
+    container_name: docling
     restart: always
     healthcheck:
-      test: ["CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:5001/health')\""]
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5001/health')"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -48,6 +48,7 @@ services:
     volumes:
       - ${BASE_DIR:-/home/wrt/TigerAI}/docling:/app/data
     environment:
+      - OCR_STRATEGY=auto
       - DOCLING_SERVE_MAX_SYNC_WAIT=9000
       - DOCLING_SERVE_ENABLE_UI=true
     extra_hosts:
@@ -59,11 +60,11 @@ services:
         max-file: "3"
 
   qdrant:
-    image: ${QDRANT_IMAGE:-qdrant/qdrant:latest}
-    container_name: qdrant-nvidia
+    image: ${QDRANT_IMAGE:-qdrant/qdrant:gpu-nvidia-latest}
+    container_name: qdrant
     restart: always
     healthcheck:
-      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/localhost/6333; printf \"GET /healthz HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n\" >&3; grep -q \"200 OK\" <&3'"]
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/6333; printf 'GET /healthz HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3; grep -q '200 OK' <&3"]
       interval: 30s
       timeout: 10s
       retries: 3

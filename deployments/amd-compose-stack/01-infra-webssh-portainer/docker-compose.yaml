@@ -20,6 +20,7 @@ services:
 
   portainer:
     image: ${PORTAINER_IMAGE:-portainer/portainer-ce:latest}
+    # 無 healthcheck：portainer-ce 為 scratch image（無 shell/wget/curl），官方未提供可用的容器內健康檢查；管理 UI 非任何服務的 depends_on，restart: always 已可自我恢復。如需監看請走容器外（http://host:9000/api/system/status）
     container_name: portainer
     restart: always
     ports:
@@ -37,9 +38,27 @@ services:
         max-size: "50m"
         max-file: "3"
 
+  portainer-edge-agent:
+    image: ${PORTAINER_AGENT_IMAGE:-portainer/agent:latest}
+    # 無 healthcheck：portainer/agent:latest 為 scratch image（無 shell/wget/curl），且 Edge 模式（EDGE=1）為對外輪詢、不在容器內監聽 9001，官方未提供可用的容器內健康檢查；restart: always 已可自我恢復。連線狀態請於 Portainer 中央主機的 Edge 環境列表監看。
+    container_name: portainer-edge-agent
+    restart: always
+    environment:
+      - EDGE=1
+      - EDGE_ID=${EDGE_ID:-}
+      - EDGE_KEY=${EDGE_KEY:-}
+      - EDGE_INSECURE_POLL=${EDGE_INSECURE_POLL:-1}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /var/lib/docker/volumes:/var/lib/docker/volumes
+      - portainer_agent_data:/data
+    networks:
+      - ai_stack_net
+
 networks:
   ai_stack_net:
     external: true
 
 volumes:
   portainer_data:
+  portainer_agent_data:
