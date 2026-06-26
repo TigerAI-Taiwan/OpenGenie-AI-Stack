@@ -3,6 +3,12 @@ services:
     image: fmartinou/whats-up-docker:latest
     container_name: wud
     restart: always
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     environment:
       - WUD_WATCHER_LOCAL_CRON=0 4 * * *
       - WUD_STORE_CONFIG_PATH=/store/wud-config.yaml

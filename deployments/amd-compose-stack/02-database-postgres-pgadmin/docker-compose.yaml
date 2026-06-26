@@ -4,6 +4,12 @@ services:
     container_name: postgres
     restart: always
     shm_size: 1gb
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PG_USER:-adm} -d ${PG_DB_NAME:-tigerai}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     # ports:
     #   - "${PG_PORT:-5432}:5432" # Disabled for security. Use pgAdmin inside the stack to manage DB.
     networks:
@@ -29,6 +35,12 @@ services:
     image: ${PGADMIN_IMAGE:-dpage/pgadmin4:latest}
     container_name: pgadmin
     restart: always
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:80/misc/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     ports:
       - "${PGADMIN_PORT:-8000}:80"
     networks:

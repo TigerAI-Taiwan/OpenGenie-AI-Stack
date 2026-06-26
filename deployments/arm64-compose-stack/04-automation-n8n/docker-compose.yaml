@@ -3,6 +3,12 @@ services:
     image: ${N8N_IMAGE:-docker.n8n.io/n8nio/n8n:latest}
     container_name: n8n-main
     restart: always
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:5678/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
     ports:
       - "${N8N_PORT:-5678}:5678"
     networks:
@@ -49,6 +55,12 @@ services:
     # no container_name — required for --scale support
     restart: always
     command: worker
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:5678/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
     networks:
       - ai_stack_net
     volumes:
@@ -71,6 +83,7 @@ services:
       - N8N_ENCRYPTION_KEY=${N8N_SECRET:-CHANGE_ME}
       - N8N_SECURE_COOKIE=false
       - N8N_WORKER_MAX_CONCURRENT_EXECUTIONS=${WORKER_CONCURRENCY:-5}
+      - QUEUE_HEALTH_CHECK_ACTIVE=true
     extra_hosts:
       - "host.docker.internal:host-gateway"
     logging:

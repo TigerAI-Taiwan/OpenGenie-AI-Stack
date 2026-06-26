@@ -4,6 +4,12 @@ services:
     container_name: wud
     restart: always
     user: root
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     environment:
       - WUD_WATCHER_LOCAL_CRON=0 4 * * *
       # Custom Registry for n8n (docker.n8n.io)

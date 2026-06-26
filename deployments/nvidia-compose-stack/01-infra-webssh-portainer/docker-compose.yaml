@@ -4,6 +4,12 @@ services:
     container_name: webssh
     restart: always
     network_mode: host
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:5032/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     environment:
       - TZ=${TZ:-Asia/Taipei}
     logging:
@@ -35,6 +41,9 @@ services:
     image: ${PORTAINER_AGENT_IMAGE:-portainer/agent:latest}
     container_name: portainer-edge-agent
     restart: always
+    # healthcheck: 刻意不加 —— portainer/agent 為 scratch image（無 shell / curl / wget），
+    # 容器內無任何可執行的健康檢查工具；硬加會因找不到指令而永久 unhealthy（比不加更糟）。
+    # Edge 模式為主動向 Portainer Server 輪詢，狀態請於 Portainer Server 端的 Edge 環境清單監看。
     environment:
       - EDGE=1
       - EDGE_ID=${EDGE_ID:-}

@@ -3,6 +3,11 @@ services:
     image: ${PROMETHEUS_IMAGE:-prom/prometheus:latest}
     container_name: prometheus
     restart: always
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     volumes:
       - ./prometheus/prometheus-amd.yml:/etc/prometheus/prometheus.yml
       - prometheus_data:/prometheus
@@ -26,6 +31,12 @@ services:
     container_name: gpu-exporter
     restart: always
     privileged: true
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:5000/metrics"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
     devices:
       - /dev/kfd:/dev/kfd
       - /dev/dri:/dev/dri
@@ -46,6 +57,11 @@ services:
     container_name: cadvisor
     restart: always
     privileged: true
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     ports:
       - "8088:8080"
     volumes:
@@ -68,6 +84,11 @@ services:
     image: ${LOKI_IMAGE:-grafana/loki:latest}
     container_name: loki
     restart: always
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3100/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     ports:
       - "3100:3100"
     extra_hosts:
@@ -84,6 +105,11 @@ services:
     image: ${GRAFANA_IMAGE:-grafana/grafana:latest}
     container_name: grafana
     restart: always
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     ports:
       - "${GRAFANA_PORT:-3000}:3000"
     environment:
@@ -109,6 +135,11 @@ services:
     image: ${NODE_EXPORTER_IMAGE:-prom/node-exporter:latest}
     container_name: node-exporter
     restart: always
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9100/metrics"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     volumes:
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
