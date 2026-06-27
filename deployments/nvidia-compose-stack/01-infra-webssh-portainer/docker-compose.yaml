@@ -4,6 +4,12 @@ services:
     container_name: webssh
     restart: always
     network_mode: host
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:5032/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     environment:
       - TZ=${TZ:-Asia/Taipei}
     logging:
@@ -14,6 +20,7 @@ services:
 
   portainer:
     image: ${PORTAINER_IMAGE:-portainer/portainer-ce:latest}
+    # 無 healthcheck：portainer-ce 為 scratch image（無 shell/wget/curl），官方未提供可用的容器內健康檢查；管理 UI 非任何服務的 depends_on，restart: always 已可自我恢復。如需監看請走容器外（http://host:9000/api/system/status）
     container_name: portainer
     restart: always
     ports:
@@ -33,6 +40,7 @@ services:
 
   portainer-edge-agent:
     image: ${PORTAINER_AGENT_IMAGE:-portainer/agent:latest}
+    # 無 healthcheck：portainer/agent:latest 為 scratch image（無 shell/wget/curl），且 Edge 模式（EDGE=1）為對外輪詢、不在容器內監聽 9001，官方未提供可用的容器內健康檢查；restart: always 已可自我恢復。連線狀態請於 Portainer 中央主機的 Edge 環境列表監看。
     container_name: portainer-edge-agent
     restart: always
     environment:

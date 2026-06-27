@@ -3,6 +3,11 @@ services:
     image: ${REDIS_IMAGE:-redis/redis-stack-server:latest}
     container_name: redis
     restart: always
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
     networks:
       - ai_stack_net
     logging:
@@ -15,6 +20,12 @@ services:
     image: ${OLLAMA_IMAGE:-ollama/ollama:latest}
     container_name: ollama
     restart: always
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
     ports:
       - "${OLLAMA_PORT:-11434}:11434"
     networks:
@@ -40,6 +51,12 @@ services:
     image: ${OWUI_IMAGE:-ghcr.io/open-webui/open-webui:main}
     container_name: openwebui-main
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
     ports:
       - "${OWUI_PORT:-8080}:8080"
     networks:
@@ -70,6 +87,12 @@ services:
     image: ${OWUI_IMAGE:-ghcr.io/open-webui/open-webui:main}
     # container_name: openwebui-worker-01  <- 移除這一行才能 Scale
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
     networks:
       - ai_stack_net
     shm_size: ${SHM_SIZE:-4gb}

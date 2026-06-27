@@ -44,7 +44,8 @@ prep_rag_env() {
     LOG " Configuring RAG environment..."
     sudo mkdir -p "$BASE_DIR/docling" "$BASE_DIR/qdrant" "$MQTT_HOST_DIR/config" "$MQTT_HOST_DIR/data" "$MQTT_HOST_DIR/log"
     REAL_USER="${SUDO_USER:-${USER:-wrt}}"
-    sudo chown -R "$REAL_USER":"$REAL_USER" "$BASE_DIR/docling" "$BASE_DIR/qdrant"
+    sudo chown -R 1001:1001 "$BASE_DIR/docling"          # docling-serve container runs as UID 1001
+    sudo chown -R "$REAL_USER":"$REAL_USER" "$BASE_DIR/qdrant"
     sudo chown -R 1883:1883 "$MQTT_HOST_DIR"
     if [ ! -f "$MQTT_HOST_DIR/config/mosquitto.conf" ]; then
       echo -e "persistence true\npersistence_location /mosquitto/data/\nlog_dest file /mosquitto/log/mosquitto.log\nlistener 1883\nallow_anonymous true" | sudo tee "$MQTT_HOST_DIR/config/mosquitto.conf" >/dev/null

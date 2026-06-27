@@ -78,12 +78,6 @@ run_step() {
     local folder=$1
     local action=${2:-all}
 
-    # AI Core Lemonade is exclusively required for AMD ROCm environments
-    if [ "$folder" == "06-ai-core-lemonade" ]; then
-        LOG_INFO ">>> Skipping module: $folder (Not required for non-AMD environments)"
-        return 0
-    fi
-
     if [ -d "$folder" ]; then
         LOG_INFO ">>> Processing ARM64 module: $folder (Action: $action)"
         pushd "$folder" > /dev/null

@@ -121,7 +121,7 @@ sudo bash master-deploy.sh all
 - **影響**: KVM 虛擬機使用 "Common KVM processor" 模型時無法啟動
 - **解決方案**: 
   1. 修改 KVM 虛擬機 CPU 模型為 `host-passthrough`
-  2. 或暫時停用 Docling: `docker stop docling-nvidia && docker rm docling-nvidia`
+  2. 或暫時停用 Docling: `docker stop docling && docker rm docling`
 - **狀態**: Qdrant 和 Mosquitto 正常運作
 
 ---
