@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # =====================================================================
 # TigerAI Hardware Intelligence Advisor (Pre-flight)
-# Path: deployments/00-pre-flight-advisor/tiger-advisor.sh
+# Path: deployments/arm64-compose-stack/00-pre-flight-advisor/deploy.sh
 # =====================================================================
 
 set -eo pipefail
@@ -20,11 +20,10 @@ VRAM="0"
 
 if command -v nvidia-smi &>/dev/null; then
     GPU_TYPE="NVIDIA"
-    # Use awk to sum all VRAM lines without closing the pipe early, preventing SIGPIPE crashes in multi-GPU setups.
-    VRAM=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits | awk '{sum+=$1} END {print sum}')
+    VRAM=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits | head -n 1)
 elif command -v rocm-smi &>/dev/null; then
     GPU_TYPE="AMD"
-    VRAM=$(rocm-smi --showmeminfo vram --json | grep -oP '"size": \K\d+' | awk '{sum+=$1} END {print sum}' || echo "0")
+    VRAM=$(rocm-smi --showmeminfo vram --json | grep -oP '"size": \K\d+' | head -n 1 || echo "0")
     VRAM=$((VRAM / 1024 / 1024)) # Convert to MB
 fi
 

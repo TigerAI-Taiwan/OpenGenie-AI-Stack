@@ -29,7 +29,7 @@ echo ""
 
 # Execute hardware advisor
 cd "$STACK_DIR/00-pre-flight-advisor"
-bash tiger-advisor.sh
+bash deploy.sh
 
 echo ""
 echo -e "${GREEN}✅ Intelligent configuration complete!${NC}"

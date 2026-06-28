@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # =====================================================================
 # TigerAI Hardware Intelligence Advisor (Pre-flight)
-# Path: deployments/00-pre-flight-advisor/tiger-advisor.sh
+# Path: deployments/nvidia-compose-stack/00-pre-flight-advisor/deploy.sh
 # =====================================================================
 
 set -eo pipefail
@@ -20,10 +20,11 @@ VRAM="0"
 
 if command -v nvidia-smi &>/dev/null; then
     GPU_TYPE="NVIDIA"
-    VRAM=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits | head -n 1)
+    # Use awk to sum all VRAM lines without closing the pipe early, preventing SIGPIPE crashes in multi-GPU setups.
+    VRAM=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits | awk '{sum+=$1} END {print sum}')
 elif command -v rocm-smi &>/dev/null; then
     GPU_TYPE="AMD"
-    VRAM=$(rocm-smi --showmeminfo vram --json | grep -oP '"size": \K\d+' | head -n 1 || echo "0")
+    VRAM=$(rocm-smi --showmeminfo vram --json | grep -oP '"size": \K\d+' | awk '{sum+=$1} END {print sum}' || echo "0")
     VRAM=$((VRAM / 1024 / 1024)) # Convert to MB
 fi
 
@@ -48,21 +49,18 @@ case "$CHOICE" in
         THREADS=$((CPU_CORES / 2))
         [ $THREADS -lt 1 ] && THREADS=1
         N8N_WORKERS=2
-        OWUI_WORKERS=2
         LOG_MAX_SIZE="10m"
         ;;
     2)
         PROFILE="BALANCED"
         THREADS=$((CPU_CORES * 3 / 4))
         N8N_WORKERS=5
-        OWUI_WORKERS=3
         LOG_MAX_SIZE="50m"
         ;;
     3)
         PROFILE="OPTIMAL"
         THREADS=$CPU_CORES
         N8N_WORKERS=10
-        OWUI_WORKERS=5
         LOG_MAX_SIZE="100m"
         ;;
     *)
@@ -71,7 +69,6 @@ case "$CHOICE" in
         THREADS=$((CPU_CORES / 2))
         [ $THREADS -lt 1 ] && THREADS=1
         N8N_WORKERS=2
-        OWUI_WORKERS=2
         LOG_MAX_SIZE="10m"
         ;;
 esac
@@ -80,32 +77,14 @@ esac
 OUTPUT_FILE="../tiger-tuning.env"
 cat <<EOF > "$OUTPUT_FILE"
 # TigerAI Auto-Generated Tuning Configuration
-# Generated: $(date)
 # Profile: $PROFILE
 TIGER_OPTIMIZATION_PROFILE=$PROFILE
 TIGER_CPU_THREADS=$THREADS
 TIGER_N8N_WORKERS=$N8N_WORKERS
-TIGER_OWUI_WORKERS=$OWUI_WORKERS
 TIGER_LOG_MAX_SIZE=$LOG_MAX_SIZE
 TIGER_GPU_TYPE=$GPU_TYPE
 TIGER_VRAM=$VRAM
-TIGER_TOTAL_RAM=$TOTAL_RAM
-TIGER_CPU_CORES=$CPU_CORES
 EOF
 
-LOG "✅ Optimization Profile [$PROFILE] has been saved to $OUTPUT_FILE"
-LOG "📊 Hardware Profile:"
-LOG "   - CPU Cores: $CPU_CORES"
-LOG "   - Total RAM: ${TOTAL_RAM}GB"
-LOG "   - GPU Type: $GPU_TYPE"
-LOG "   - GPU VRAM: ${VRAM}MB"
-LOG ""
-LOG "🎯 Recommended Settings:"
-LOG "   - Worker Threads: $THREADS"
-LOG "   - n8n Workers: $N8N_WORKERS"
-LOG "   - OpenWebUI Workers: $OWUI_WORKERS"
-LOG "   - Log Max Size: $LOG_MAX_SIZE"
-LOG ""
-LOG "💡 All deployment scripts will now use these optimized settings automatically."
-
-
+LOG " Optimization Profile [$PROFILE] has been saved to $OUTPUT_FILE"
+LOG "The master deployer will now use these settings to calibrate all layers."
