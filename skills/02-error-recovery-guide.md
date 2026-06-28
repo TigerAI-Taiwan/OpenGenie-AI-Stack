@@ -84,7 +84,7 @@ Invoke the script via the `bash` interpreter instead of relying on the exec bit:
 cd /home/<user>/OpenGenie-AI-Stack/deployments/<stack-dir>
 sudo bash master-deploy.sh system     # or: init / app / clean
 ```
-This works for every `.sh` in the project (`master-deploy.sh`, `deploy.sh`, `tiger-advisor.sh`, etc.).
+This works for every `.sh` in the project (`master-deploy.sh`, `deploy.sh`, etc.).
 
 > 💡 **Preventive rule for the agent:** When emitting any user-facing sudo command, default to `sudo bash <script>` form from the start. See `01-deployment-state-machine.md` §2.5.
 

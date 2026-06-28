@@ -44,7 +44,7 @@ VALIDATION_SCRIPT="./07-validation-stack/check-health.sh"
 usage() {
     echo "Usage: sudo $0 {init | all | restart | system | app | status | test | backup | clean}"
     echo ""
-    echo "  init   : [Mandatory] ARM64 Hardware assessment and optimization"
+    echo "  init   : Install GPU driver if needed (prompts reboot), then run hardware advisor"
     echo "  all    : Execute full deployment (from Phase 00 to 13)"
     echo "  restart: Restart all services in the stack"
     echo "  system : Execute Phase 00 system initialization (NVIDIA/Docker/Node-RED)"
@@ -100,12 +100,22 @@ run_step() {
 
 case "$1" in
     init)
-        advisor_script="./00-pre-flight-advisor/tiger-advisor.sh"
-        if [ -f "$advisor_script" ]; then
-            bash "$advisor_script"
-        else
-            LOG_ERROR "Advisor script not found: $advisor_script"
+        # Driver not ready yet → install driver (idempotent), prompt reboot, then exit
+        if ! nvidia-smi >/dev/null 2>&1 && ! rocm-smi >/dev/null 2>&1; then
+            run_step "${DEPLOY_STEPS[0]}"
+            LOG_WARN "──────────────────────────────────────────────"
+            LOG_WARN " Driver installed. A reboot is REQUIRED, then re-run init:"
+            LOG_WARN "   1) sudo reboot"
+            LOG_WARN "   2) sudo bash master-deploy.sh init"
+            LOG_WARN "   3) sudo bash master-deploy.sh all"
+            LOG_WARN "──────────────────────────────────────────────"
+            exit 0
         fi
+
+        # Driver already ready → re-run system setup (idempotent), then run advisor (GPU-aware)
+        run_step "${DEPLOY_STEPS[0]}"
+        LOG_INFO "GPU driver active — running hardware advisor..."
+        run_step "00-pre-flight-advisor"
         ;;
     all)
         for step in "${DEPLOY_STEPS[@]}"; do

@@ -83,7 +83,9 @@ Reset the agent's memory so the next invocation starts from `PRISTINE`:
 # If not, run the locator block from there first.
 rm -f "$PROJECT_ROOT/.agent-state.json"
 rm -f "$PROJECT_ROOT/.agent-state.bak.json"
-rm -f "$PROJECT_ROOT/deployments/nvidia-compose-stack/00-pre-flight-advisor/tiger-tuning.env"
+rm -f "$PROJECT_ROOT/deployments/nvidia-compose-stack/tiger-tuning.env"
+rm -f "$PROJECT_ROOT/deployments/amd-compose-stack/tiger-tuning.env"
+rm -f "$PROJECT_ROOT/deployments/arm64-compose-stack/tiger-tuning.env"
 rm -f "$PROJECT_ROOT/deployments/nvidia-compose-stack/*/.env"
 ```
 

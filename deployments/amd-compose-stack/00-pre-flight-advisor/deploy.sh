@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # =====================================================================
 # TigerAI Hardware Intelligence Advisor (Pre-flight)
-# Path: deployments/00-pre-flight-advisor/tiger-advisor.sh
+# Path: deployments/amd-compose-stack/00-pre-flight-advisor/deploy.sh
 # =====================================================================
 
 set -eo pipefail
@@ -48,18 +48,21 @@ case "$CHOICE" in
         THREADS=$((CPU_CORES / 2))
         [ $THREADS -lt 1 ] && THREADS=1
         N8N_WORKERS=2
+        OWUI_WORKERS=2
         LOG_MAX_SIZE="10m"
         ;;
     2)
         PROFILE="BALANCED"
         THREADS=$((CPU_CORES * 3 / 4))
         N8N_WORKERS=5
+        OWUI_WORKERS=3
         LOG_MAX_SIZE="50m"
         ;;
     3)
         PROFILE="OPTIMAL"
         THREADS=$CPU_CORES
         N8N_WORKERS=10
+        OWUI_WORKERS=5
         LOG_MAX_SIZE="100m"
         ;;
     *)
@@ -68,6 +71,7 @@ case "$CHOICE" in
         THREADS=$((CPU_CORES / 2))
         [ $THREADS -lt 1 ] && THREADS=1
         N8N_WORKERS=2
+        OWUI_WORKERS=2
         LOG_MAX_SIZE="10m"
         ;;
 esac
@@ -76,14 +80,32 @@ esac
 OUTPUT_FILE="../tiger-tuning.env"
 cat <<EOF > "$OUTPUT_FILE"
 # TigerAI Auto-Generated Tuning Configuration
+# Generated: $(date)
 # Profile: $PROFILE
 TIGER_OPTIMIZATION_PROFILE=$PROFILE
 TIGER_CPU_THREADS=$THREADS
 TIGER_N8N_WORKERS=$N8N_WORKERS
+TIGER_OWUI_WORKERS=$OWUI_WORKERS
 TIGER_LOG_MAX_SIZE=$LOG_MAX_SIZE
 TIGER_GPU_TYPE=$GPU_TYPE
 TIGER_VRAM=$VRAM
+TIGER_TOTAL_RAM=$TOTAL_RAM
+TIGER_CPU_CORES=$CPU_CORES
 EOF
 
-LOG " Optimization Profile [$PROFILE] has been saved to $OUTPUT_FILE"
-LOG "The master deployer will now use these settings to calibrate all layers."
+LOG "✅ Optimization Profile [$PROFILE] has been saved to $OUTPUT_FILE"
+LOG "📊 Hardware Profile:"
+LOG "   - CPU Cores: $CPU_CORES"
+LOG "   - Total RAM: ${TOTAL_RAM}GB"
+LOG "   - GPU Type: $GPU_TYPE"
+LOG "   - GPU VRAM: ${VRAM}MB"
+LOG ""
+LOG "🎯 Recommended Settings:"
+LOG "   - Worker Threads: $THREADS"
+LOG "   - n8n Workers: $N8N_WORKERS"
+LOG "   - OpenWebUI Workers: $OWUI_WORKERS"
+LOG "   - Log Max Size: $LOG_MAX_SIZE"
+LOG ""
+LOG "💡 All deployment scripts will now use these optimized settings automatically."
+
+
