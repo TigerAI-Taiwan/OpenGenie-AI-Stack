@@ -32,6 +32,13 @@ GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; BLUE='\033[0;34m'; NC
 LOG(){ echo -e "${GREEN}[$LOG_PREFIX INFO]${NC} $*"; }
 ERROR(){ echo -e "${RED}[$LOG_PREFIX ERROR]${NC} $*"; exit 1; }
 
+# Fallback defaults for service paths and models (align with arm64 .env.example and nvidia deploy.sh)
+BASE_DIR="${BASE_DIR:-/home/wrt/TigerAI}"
+MODELS_DIR="${MODELS_DIR:-${BASE_DIR}/models}"
+LOG_DIR="${LOG_DIR:-${BASE_DIR}/lemonade-logs}"
+LLM_MODEL="${LLM_MODEL:-gpt-oss-20b-mxfp4.gguf}"
+EMBED_MODEL="${EMBED_MODEL:-Qwen3-Embedding-8B-Q8_0.gguf}"
+
 usage() {
     echo "Usage: sudo $0 {all | install | config | status | restart | purge}"
     exit 1
@@ -193,19 +200,24 @@ ROT
 # --- 3) Logic Execution ---
 [ "$(id -u)" -ne 0 ] && ERROR "Please run with sudo."
 
-# --- AMD GPU Guard: lemonade is AMD-only; skip on non-AMD hosts ---
+# --- AMD-only guard ---------------------------------------------------
+# Lemonade is an AMD-exclusive service in TigerAI. On NVIDIA / ARM64 hosts
+# there is no AMD ROCm GPU, so skip installation entirely — this mirrors the
+# k3s deploy.sh which skips Lemonade when the node has no `amd.com/gpu`.
+#   /dev/kfd  = AMD Kernel Fusion Driver node, the ROCm compute interface.
+#               Present only on AMD ROCm GPUs, never on NVIDIA (/dev/nvidia*).
+#               It is also what the amd-compose docker-compose mounts.
+#   lspci     = fallback: match an AMD/ATI VGA/3D/Display controller.
 detect_amd_gpu() {
-    # Primary: ROCm kernel interface
     [ -e /dev/kfd ] && return 0
-    # Fallback: PCI enumeration
-    if command -v lspci >/dev/null 2>&1 && lspci 2>/dev/null | grep -iqE 'VGA.*(AMD|ATI)|Display.*(AMD|ATI)|3D.*(AMD|ATI)'; then
-        return 0
+    if command -v lspci >/dev/null 2>&1; then
+        lspci 2>/dev/null | grep -iE 'vga|3d|display' | grep -qiE 'advanced micro devices|radeon|\b(amd|ati)\b' && return 0
     fi
     return 1
 }
 
 if ! detect_amd_gpu; then
-    LOG "No AMD GPU detected (lemonade is AMD-only). Skipping lemonade deployment on this host."
+    LOG " No AMD ROCm GPU detected (no /dev/kfd, no AMD VGA) — Lemonade is AMD-exclusive; skipping installation/configuration on this host."
     exit 0
 fi
 
