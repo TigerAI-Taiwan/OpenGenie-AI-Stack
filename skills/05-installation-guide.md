@@ -48,11 +48,12 @@ grep "CHANGE_ME" .env
 > **Zero-Leak Secret Rule**: Never write passwords using `sed` or terminal commands. Instruct the user to open and edit the `.env` file directly to prevent credentials from leaking into bash history.
 
 ### Action C: Orchestrated Deployment Execution
-Always run the deployment steps incrementally to ensure recovery boundaries:
-1.  **System Engine Setup**: `sudo bash master-deploy.sh system`
-2.  **Hardware Calibration**: `sudo bash master-deploy.sh init`
-3.  **Core Services Stack**: `sudo bash master-deploy.sh app`
-4.  **Health Verification**: `sudo bash master-deploy.sh test`
+Always run the deployment steps in order:
+1.  **Driver Install + Hardware Calibration**: `sudo bash master-deploy.sh init`
+    - If no GPU driver is detected: installs driver, prompts reboot, exits. Reboot and re-run `init`.
+    - If driver is already active: runs the hardware advisor (interactive profile selection).
+2.  **Full Stack Deployment**: `sudo bash master-deploy.sh all`
+3.  **Health Verification**: `sudo bash master-deploy.sh test`
 
 ---
 

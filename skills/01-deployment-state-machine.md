@@ -25,19 +25,19 @@ Because a reboot is required to activate GPU drivers, you will lose connection. 
 ```
 [STATE 0: Pristine]
      │
-     └─→ sudo ./master-deploy.sh system
+     └─→ sudo ./master-deploy.sh init  ← installs GPU driver; prompts reboot and exits
      └─→ sudo reboot  ← session ends here
      └─→ USER WAKES YOU UP
      │
 [STATE 1: Post-Reboot, Drivers Active]
      │
-     └─→ sudo ./master-deploy.sh init  ← interactive, choose profile
-     └─→ sudo ./master-deploy.sh app   ← pulls images, starts containers
+     └─→ sudo ./master-deploy.sh init  ← driver ready; runs hardware advisor (interactive)
+     └─→ sudo ./master-deploy.sh all   ← pulls images, starts all containers
      │
 [STATE 2: Deployment Complete]
 ```
 
-> **CRITICAL:** Never run `master-deploy.sh all`. The `all` command re-runs system setup (Phase 00) again, which conflicts with the post-reboot flow. Always use `system` → `init` → `app`.
+> **Note:** `init` is self-guarding — if no GPU driver is detected it installs the driver and prompts reboot; once the driver is active it runs the hardware advisor. After reboot, re-run `init` then `all`.
 
 ---
 
@@ -69,7 +69,7 @@ command -v nvidia-smi > /dev/null 2>&1 && nvidia-smi > /dev/null 2>&1 && echo "S
 docker ps 2>/dev/null | grep -q "openwebui" && echo "STACK_RUNNING" || echo "STACK_STOPPED"
 
 # 5. Check if init was completed (tuning file exists)
-test -f ./00-pre-flight-advisor/tiger-tuning.env && echo "TUNING_YES" || echo "TUNING_NO"
+test -f ./tiger-tuning.env && echo "TUNING_YES" || echo "TUNING_NO"
 ```
 
 Combine these results with `.agent-state.json` to identify your exact state below.
@@ -152,9 +152,9 @@ Combine these results with `.agent-state.json` to identify your exact state belo
    ```bash
    write_state '{"state": "INSTALLING_SYSTEM", "gpu": "<DETECTED_GPU>", "stack": "<STACK_DIR>"}'
    ```
-4. Run system setup (installs ROCm/NVIDIA drivers + Docker):
+4. Run the self-guarding init (installs GPU driver + Docker, then prompts reboot):
    ```bash
-   sudo ./master-deploy.sh system
+   sudo ./master-deploy.sh init
    ```
 
 5. **MANDATORY: Verify the system setup actually ran — do not trust the "completed" message alone.**
@@ -248,14 +248,14 @@ Combine these results with `.agent-state.json` to identify your exact state belo
 
    If the file is missing or empty, `init` has failed. Consult `02-error-recovery-guide.md` and do NOT proceed to `app`.
 
-   > 🗂️ **Legacy-clone fallback:** Pre-fix clones had a path mismatch — `tiger-advisor.sh` wrote `../tiger-tuning.env` relative to the *caller's* `$PWD` (landing at `deployments/tiger-tuning.env`), and `amd/nvidia` `master-deploy.sh` read `./00-pre-flight-advisor/tiger-tuning.env`. Symptom: the line `[Master WARN] Detected [Conservative (Conservative)] mode` at the top of `init` output, and `master-deploy.sh app` silently using CONSERVATIVE despite the user picking another profile. Current `main` fixes both sides — advisor self-locates via `BASH_SOURCE` and writes to `<stack>/tiger-tuning.env`; all `master-deploy.sh` read the same path. If working from an older clone, the tuning file is a gitignored runtime output, so the legal recovery is `cp deployments/tiger-tuning.env <stack>/tiger-tuning.env` — do NOT edit the scripts; pull the fix instead.
+   > 🗂️ **Legacy-clone fallback:** Pre-fix clones had a path mismatch — `deploy.sh` wrote `../tiger-tuning.env` relative to the *caller's* `$PWD` (landing at `deployments/tiger-tuning.env`), and `amd/nvidia` `master-deploy.sh` read `./00-pre-flight-advisor/tiger-tuning.env`. Symptom: the line `[Master WARN] Detected [Conservative (Conservative)] mode` at the top of `init` output, and `master-deploy.sh app` silently using CONSERVATIVE despite the user picking another profile. Current `main` fixes both sides — advisor self-locates via `BASH_SOURCE` and writes to `<stack>/tiger-tuning.env`; all `master-deploy.sh` read the same path. If working from an older clone, the tuning file is a gitignored runtime output, so the legal recovery is `cp deployments/tiger-tuning.env <stack>/tiger-tuning.env` — do NOT edit the scripts; pull the fix instead.
 
-   > 💡 **AMD-stack note:** It is normal for `TIGER_GPU_TYPE=Unknown` / `TIGER_VRAM=0` on AMD hosts because `tiger-advisor.sh` relies on `rocm-smi`, which is not installed on the host (ROCm runs inside containers via `/dev/kfd` + `/dev/dri`). This does NOT block deployment.
+   > 💡 **AMD-stack note:** It is normal for `TIGER_GPU_TYPE=Unknown` / `TIGER_VRAM=0` on AMD hosts because `deploy.sh` relies on `rocm-smi`, which is not installed on the host (ROCm runs inside containers via `/dev/kfd` + `/dev/dri`). This does NOT block deployment.
 
-6. Update state and deploy the application stack:
+6. Update state and deploy the full application stack:
    ```bash
    write_state '{"state": "DEPLOYING_APP", "gpu": "<DETECTED_GPU>", "stack": "<STACK_DIR>"}'
-   sudo ./master-deploy.sh app
+   sudo ./master-deploy.sh all
    ```
    This step pulls Docker images and starts all service containers. It may take 5–15 minutes on first run.
 
