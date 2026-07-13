@@ -42,6 +42,8 @@ services:
       - OFFLOAD_MANUAL_EXECUTIONS_TO_WORKERS=true
       - N8N_EDITOR_BASE_URL=${N8N_URL:-http://host.docker.internal:5678}
       - WEBHOOK_URL=${N8N_URL:-http://host.docker.internal:5678}
+      - N8N_METRICS=${N8N_METRICS:-true}
+      - N8N_METRICS_INCLUDE_QUEUE_METRICS=${N8N_METRICS_INCLUDE_QUEUE_METRICS:-true}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     logging:
@@ -84,6 +86,8 @@ services:
       - N8N_SECURE_COOKIE=false
       - N8N_WORKER_MAX_CONCURRENT_EXECUTIONS=${WORKER_CONCURRENCY:-5}
       - QUEUE_HEALTH_CHECK_ACTIVE=true
+      - N8N_METRICS=${N8N_METRICS:-true}
+      - N8N_METRICS_INCLUDE_QUEUE_METRICS=${N8N_METRICS_INCLUDE_QUEUE_METRICS:-true}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     logging:
