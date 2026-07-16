@@ -33,7 +33,28 @@ loki.source.docker "containers" {
   host          = "unix:///var/run/docker.sock"
   targets       = discovery.docker.containers.targets
   relabel_rules = discovery.relabel.containers.rules
-  forward_to    = [loki.write.default.receiver]
+  forward_to    = [loki.process.n8n_json.receiver]
+}
+
+// Parse ONLY the n8n services' JSON stdout. stage.match action defaults to "keep":
+// non-matching lines pass through untouched (other containers' plain-text logs are
+// NOT JSON-parsed). Only the low-cardinality `level` becomes a label; high-cardinality
+// fields stay in the log body to bound Loki series.
+loki.process "n8n_json" {
+  stage.match {
+    selector = "{compose_service=~\"n8n-.*\"}"
+    stage.json {
+      expressions = { level = "level", ts = "timestamp" }
+    }
+    stage.timestamp {
+      source = "ts"
+      format = "RFC3339"
+    }
+    stage.labels {
+      values = { level = "" }
+    }
+  }
+  forward_to = [loki.write.default.receiver]
 }
 
 loki.write "default" {

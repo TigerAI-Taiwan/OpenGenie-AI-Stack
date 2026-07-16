@@ -44,6 +44,7 @@ services:
       - N8N_SECURE_COOKIE=false
       - N8N_METRICS=${N8N_METRICS:-true}
       - N8N_METRICS_INCLUDE_QUEUE_METRICS=${N8N_METRICS_INCLUDE_QUEUE_METRICS:-true}
+      - N8N_LOG_FORMAT=${N8N_LOG_FORMAT:-json}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     # Note: Redis dependency is external (from 03 stack)
@@ -90,6 +91,7 @@ services:
       - QUEUE_HEALTH_CHECK_ACTIVE=true
       - N8N_METRICS=${N8N_METRICS:-true}
       - N8N_METRICS_INCLUDE_QUEUE_METRICS=${N8N_METRICS_INCLUDE_QUEUE_METRICS:-true}
+      - N8N_LOG_FORMAT=${N8N_LOG_FORMAT:-json}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     logging:
