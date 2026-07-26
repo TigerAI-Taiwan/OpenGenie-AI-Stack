@@ -63,19 +63,14 @@ case "$ACTION" in
     all)
         LOG " Starting Database Stack (Postgres, pgAdmin)..."
         docker compose up -d
-        
-        LOG " Waiting for database to be ready..."
-        sleep 5
-        
-        # Sync with src logic: Ensure core schemas exist
-        LOG " Initializing core schemas (n8n, openwebui)..."
-        docker exec -i postgres psql -U "$PG_USER" -d "$PG_DB_NAME" -c "CREATE SCHEMA IF NOT EXISTS n8n AUTHORIZATION $PG_USER;" 2>/dev/null || true
-        docker exec -i postgres psql -U "$PG_USER" -d "$PG_DB_NAME" -c "CREATE SCHEMA IF NOT EXISTS openwebui AUTHORIZATION $PG_USER;" 2>/dev/null || true
+        wait_for_db
+        init_schemas
         LOG "✅ Database bootstrap completed."
         ;;
     postgres|pgadmin)
         LOG " Starting specific service: $ACTION..."
         docker compose up -d "$ACTION"
+        [ "$ACTION" == "postgres" ] && wait_for_db && init_schemas
         ;;
     down)
         LOG " Stopping database services..."

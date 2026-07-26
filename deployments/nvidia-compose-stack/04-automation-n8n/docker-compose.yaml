@@ -45,6 +45,10 @@ services:
       - N8N_METRICS=${N8N_METRICS:-true}
       - N8N_METRICS_INCLUDE_QUEUE_METRICS=${N8N_METRICS_INCLUDE_QUEUE_METRICS:-true}
       - N8N_LOG_FORMAT=${N8N_LOG_FORMAT:-json}
+      - NODES_EXCLUDE=[]
+      - N8N_PROXY_HOPS=1
+      - N8N_BLOCK_FILE_ACCESS_TO_N8N_FILES=false
+      - N8N_RESTRICT_FILE_ACCESS_TO=
     extra_hosts:
       - "host.docker.internal:host-gateway"
     # Note: Redis dependency is external (from 03 stack)
@@ -92,6 +96,9 @@ services:
       - N8N_METRICS=${N8N_METRICS:-true}
       - N8N_METRICS_INCLUDE_QUEUE_METRICS=${N8N_METRICS_INCLUDE_QUEUE_METRICS:-true}
       - N8N_LOG_FORMAT=${N8N_LOG_FORMAT:-json}
+      - NODES_EXCLUDE=[]
+      - N8N_BLOCK_FILE_ACCESS_TO_N8N_FILES=false
+      - N8N_RESTRICT_FILE_ACCESS_TO=
     extra_hosts:
       - "host.docker.internal:host-gateway"
     logging:

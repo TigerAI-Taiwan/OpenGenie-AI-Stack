@@ -44,7 +44,7 @@ loki.process "n8n_json" {
   stage.match {
     selector = "{compose_service=~\"n8n-.*\"}"
     stage.json {
-      expressions = { level = "level", ts = "timestamp" }
+      expressions = { level = "level", ts = "metadata.timestamp" }
     }
     stage.timestamp {
       source = "ts"

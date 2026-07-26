@@ -40,6 +40,10 @@ usage() {
 # --- 1) Logic ---
 [ $# -eq 0 ] && usage
 
+# Fallback defaults (used when .env is not present or incomplete)
+PG_USER=${PG_USER:-adm}
+PG_DB_NAME=${PG_DB_NAME:-tigerai}
+
 ensure_network() {
     docker network inspect ai_stack_net >/dev/null 2>&1 || \
     (LOG "Creating Docker network: ai_stack_net" && docker network create ai_stack_net)
@@ -59,8 +63,8 @@ wait_for_db() {
 
 init_schemas() {
     LOG " Initializing Schemas..."
-    docker exec -i postgres psql -U "$PG_USER" -d "$PG_DB_NAME" -c "CREATE SCHEMA IF NOT EXISTS n8n AUTHORIZATION $PG_USER;" 2>/dev/null || true
-    docker exec -i postgres psql -U "$PG_USER" -d "$PG_DB_NAME" -c "CREATE SCHEMA IF NOT EXISTS openwebui AUTHORIZATION $PG_USER;" 2>/dev/null || true
+    docker exec -i postgres psql -U "$PG_USER" -d "$PG_DB_NAME" -c "CREATE SCHEMA IF NOT EXISTS n8n AUTHORIZATION $PG_USER;"
+    docker exec -i postgres psql -U "$PG_USER" -d "$PG_DB_NAME" -c "CREATE SCHEMA IF NOT EXISTS openwebui AUTHORIZATION $PG_USER;"
 }
 
 ACTION=$1
