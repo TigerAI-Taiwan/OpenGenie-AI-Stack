@@ -28,7 +28,7 @@ services:
         max-file: "3"
 
   gpu-exporter:
-    image: ${DCGM_EXPORTER_IMAGE:-nvidia/dcgm-exporter:4.5.2-4.8.1-ubuntu22.04}
+    image: ${DCGM_EXPORTER_IMAGE:-nvcr.io/nvidia/k8s/dcgm-exporter:4.5.2-4.8.1-ubuntu22.04}
     container_name: gpu-exporter
     restart: always
     healthcheck:
@@ -166,6 +166,37 @@ services:
         max-size: "50m"
         max-file: "3"
 
+  alloy:
+    image: ${ALLOY_IMAGE:-grafana/alloy:v1.17.1}
+    container_name: alloy
+    restart: always
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/12345"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    command:
+      - run
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy/config.alloy
+    volumes:
+      - ./alloy-config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - alloy_data:/var/lib/alloy/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - ai_stack_net
+    depends_on:
+      - loki
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
+
 networks:
   ai_stack_net:
     external: true
@@ -173,3 +204,4 @@ networks:
 volumes:
   prometheus_data:
   grafana_data:
+  alloy_data:

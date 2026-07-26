@@ -27,3 +27,10 @@ scrape_configs:
   - job_name: 'docker-containers'
     static_configs:
       - targets: []
+
+  # n8n metrics (main: process + queue metrics)
+  # n8n-worker is started via --scale with no fixed container_name / stable DNS, so a static scrape
+  # target is unreliable; it is intentionally excluded (main already carries the queue metrics).
+  - job_name: 'n8n'
+    static_configs:
+      - targets: ['n8n-main:5678']
