@@ -19,12 +19,12 @@ services:
       - ${FILES_DIR:-/home/wrt/TigerAI/node/n8n/files}:/home/node/.n8n-files
     environment:
       - DB_TYPE=${DB_TYPE:-postgresdb}
-      - DB_POSTGRESDB_DATABASE=${DB_POSTGRESDB_DATABASE:-tigerai}
+      - DB_POSTGRESDB_DATABASE=${DB_POSTGRESDB_DATABASE:-n8n}
       - DB_POSTGRESDB_HOST=${DB_POSTGRESDB_HOST:-postgres}
       - DB_POSTGRESDB_PORT=5432
       - DB_POSTGRESDB_USER=${DB_POSTGRESDB_USER:-adm}
       - DB_POSTGRESDB_PASSWORD=${DB_POSTGRESDB_PASSWORD:-CHANGE_ME}
-      - DB_POSTGRESDB_SCHEMA=${DB_POSTGRESDB_SCHEMA:-n8n}
+      - DB_POSTGRESDB_SCHEMA=${DB_POSTGRESDB_SCHEMA:-public}
       - QUEUE_MODE=${QUEUE_MODE:-redis}
       - EXECUTIONS_MODE=queue
       - QUEUE_BULL_REDIS_HOST=${REDIS_HOST:-redis}
@@ -77,12 +77,12 @@ services:
       - ${FILES_DIR:-/home/wrt/TigerAI/node/n8n/files}:/home/node/.n8n-files
     environment:
       - DB_TYPE=${DB_TYPE:-postgresdb}
-      - DB_POSTGRESDB_DATABASE=${DB_POSTGRESDB_DATABASE:-tigerai}
+      - DB_POSTGRESDB_DATABASE=${DB_POSTGRESDB_DATABASE:-n8n}
       - DB_POSTGRESDB_HOST=${DB_POSTGRESDB_HOST:-postgres}
       - DB_POSTGRESDB_PORT=5432
       - DB_POSTGRESDB_USER=${DB_POSTGRESDB_USER:-adm}
       - DB_POSTGRESDB_PASSWORD=${DB_POSTGRESDB_PASSWORD:-CHANGE_ME}
-      - DB_POSTGRESDB_SCHEMA=${DB_POSTGRESDB_SCHEMA:-n8n}
+      - DB_POSTGRESDB_SCHEMA=${DB_POSTGRESDB_SCHEMA:-public}
       - QUEUE_MODE=${QUEUE_MODE:-redis}
       - EXECUTIONS_MODE=queue
       - QUEUE_BULL_REDIS_HOST=${REDIS_HOST:-redis}

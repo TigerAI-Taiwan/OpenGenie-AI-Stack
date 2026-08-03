@@ -30,7 +30,6 @@ check_endpoint() {
 # 1. Infrastructure Checks
 LOG "--- [Phase 1: Base Infrastructure] ---"
 check_endpoint "Portainer" "http://$TARGET_HOST:9000" "200|302" || true
-check_endpoint "Node-RED (Native)" "http://$TARGET_HOST:1880" "200" || true
 
 # 2. Database Connectivity (via pg_isready)
 LOG "--- [Phase 2: Database] ---"

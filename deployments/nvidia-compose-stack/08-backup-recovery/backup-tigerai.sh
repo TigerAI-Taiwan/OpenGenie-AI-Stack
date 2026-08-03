@@ -7,18 +7,30 @@
 set -eo pipefail
 
 # --- 0) Configuration ---
-if [ -f .env ]; then
-  export $(grep -v '^#' .env | xargs)
-fi
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Load env: tiger-tuning (hardware defaults) → ../.env (parent/root) → .env (local, highest priority)
+# Anchored to script dir so cron (arbitrary CWD) still resolves the root stack .env
+[ -f "$SCRIPT_DIR/../tiger-tuning.env" ] && export $(grep -v '^#' "$SCRIPT_DIR/../tiger-tuning.env" | sed 's/\r//g' | xargs)
+[ -f "$SCRIPT_DIR/../.env" ] && export $(grep -v '^#' "$SCRIPT_DIR/../.env" | sed 's/\r//g' | xargs)
+[ -f "$SCRIPT_DIR/.env" ] && export $(grep -v '^#' "$SCRIPT_DIR/.env" | sed 's/\r//g' | xargs)
+
+# In-script defaults (env cascade above overrides these when set)
+BASE_DIR=${BASE_DIR:-/home/wrt/TigerAI}
+PG_CONTAINER=${PG_CONTAINER:-postgres}
+# DATA_DIRS unset -> back up everything under BASE_DIR (space-separated list to narrow)
+DATA_DIRS=${DATA_DIRS:-"$BASE_DIR"}
 
 BACKUP_ROOT=${BACKUP_ROOT:-"/opt/tigerai/backups"}
 RETENTION_DAYS=${RETENTION_DAYS:-7}
 DATE=$(date +%Y%m%d_%H%M%S)
-BACKUP_PATH="${BACKUP_ROOT:-"/opt/tigerai/backups"}/${DATE}"
+BACKUP_PATH="${BACKUP_ROOT}/${DATE}"
+MANIFEST="${BACKUP_PATH}/data-paths.manifest"
+INCOMPLETE=0
 
 LOG_PREFIX="TigerAI Backup"
 GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; BLUE='\033[0;34m'; NC='\033[0m'
 LOG(){ echo -e "${GREEN}[$LOG_PREFIX INFO]${NC} $*"; }
+WARN(){ echo -e "${YELLOW}[$LOG_PREFIX WARN]${NC} $*"; }
 ERROR(){ echo -e "${RED}[$LOG_PREFIX ERROR]${NC} $*"; exit 1; }
 
 # Create backup directory
@@ -26,44 +38,80 @@ mkdir -p "$BACKUP_PATH"
 
 # --- 1) PostgreSQL Backup ---
 backup_db() {
-    LOG " [1/4] Dumping PostgreSQL Database..."
-    if docker ps | grep -q "$PG_CONTAINER"; then
-        docker exec "$PG_CONTAINER" pg_dump -U "$PG_USER" "$PG_DB_NAME" | gzip > "${BACKUP_PATH}/database.sql.gz"
-        LOG " Database dump completed."
-    else
-        LOG " PostgreSQL container not running, skipping DB backup."
+    LOG " [1/3] Dumping PostgreSQL Databases..."
+    if ! docker ps --format '{{.Names}}' | grep -qx "$PG_CONTAINER"; then
+        WARN "PostgreSQL container '$PG_CONTAINER' not running; skipping DB backup. Backup is INCOMPLETE."
+        INCOMPLETE=1
+        return
     fi
+
+    # Enumerate every non-template, non-system database dynamically so each app DB
+    # (tigerai, n8n, openwebui, grafana, ...) is dumped to its own file and
+    # any future per-service DB is auto-covered without editing this script.
+    local db_list
+    if ! db_list=$(docker exec "$PG_CONTAINER" psql -U "$PG_USER" -d postgres -tAc \
+        "SELECT datname FROM pg_database WHERE datistemplate=false AND datname NOT IN ('postgres')"); then
+        WARN "Failed to query database list from '$PG_CONTAINER'; skipping DB backup. Backup is INCOMPLETE."
+        INCOMPLETE=1
+        return
+    fi
+
+    if [ -z "${db_list//[[:space:]]/}" ]; then
+        WARN "No user databases found in '$PG_CONTAINER'; nothing to dump. Backup is INCOMPLETE."
+        INCOMPLETE=1
+        return
+    fi
+
+    local db
+    while IFS= read -r db; do
+        [ -z "$db" ] && continue
+        LOG "Dumping database '$db'..."
+        if docker exec "$PG_CONTAINER" pg_dump -U "$PG_USER" "$db" | gzip > "${BACKUP_PATH}/db_${db}.sql.gz"; then
+            LOG "  -> db_${db}.sql.gz"
+        else
+            WARN "pg_dump failed for database '$db'. Backup is INCOMPLETE."
+            INCOMPLETE=1
+        fi
+    done <<< "$db_list"
+    LOG " Database dump completed."
 }
 
-# --- 2) Node-RED (Native) Backup ---
-backup_nodered() {
-    LOG " [2/4] Backing up Node-RED Configurations..."
-    if [ -d "$NODERED_DATA" ]; then
-        sudo tar -czf "${BACKUP_PATH}/nodered_config.tar.gz" -C "$NODERED_DATA" . --exclude="node_modules"
-        LOG " Node-RED backup completed (excluded node_modules)."
-    else
-        LOG " Node-RED data directory not found."
-    fi
-}
-
-# --- 3) Critical Data Directories ---
+# --- 2) Critical Data Directories ---
 backup_data_dirs() {
-    LOG " [3/4] Backing up Application Data Directories..."
+    LOG " [2/3] Backing up Application Data Directories..."
+    if [ -z "${DATA_DIRS// /}" ]; then
+        WARN "DATA_DIRS is empty (BASE_DIR='${BASE_DIR}'); no application data backed up. Backup is INCOMPLETE."
+        INCOMPLETE=1
+        return
+    fi
+    local seen_names=" "
     for dir in $DATA_DIRS; do
         if [ -d "$dir" ]; then
             name=$(basename "$dir")
+            # Guard against basename collisions (e.g. /a/n8n vs /b/n8n): the tar filename
+            # and manifest key are both keyed on basename, so a duplicate would clobber the
+            # earlier archive and misdirect restore. Fail loud and skip the colliding entry.
+            if [[ "$seen_names" == *" ${name} "* ]]; then
+                WARN "Duplicate basename '${name}' (from '$dir') collides with an earlier DATA_DIRS entry; skipping to avoid overwrite. Backup is INCOMPLETE."
+                INCOMPLETE=1
+                continue
+            fi
+            seen_names="${seen_names}${name} "
             LOG "Packaging $dir..."
             sudo tar -czf "${BACKUP_PATH}/data_${name}.tar.gz" -C "$dir" .
+            # Record source path so restore returns data to the exact same location
+            echo "data_${name}.tar.gz=${dir}" >> "$MANIFEST"
         else
-            LOG " Directory $dir not found, skipping."
+            WARN "Directory '$dir' not found; skipping. Backup is INCOMPLETE."
+            INCOMPLETE=1
         fi
     done
     LOG " Data directory backup completed."
 }
 
-# --- 4) Retention Policy ---
+# --- 3) Retention Policy ---
 cleanup_old_backups() {
-    LOG " [4/4] Applying Retention Policy (Keeping last $RETENTION_DAYS days)..."
+    LOG " [3/3] Applying Retention Policy (Keeping last $RETENTION_DAYS days)..."
     find "$BACKUP_ROOT" -maxdepth 1 -type d -mtime +"$RETENTION_DAYS" -exec rm -rf {} +
     LOG " Cleanup finished."
 }
@@ -73,9 +121,17 @@ cleanup_old_backups() {
 
 LOG " Starting Full System Backup to ${BACKUP_PATH}..."
 backup_db
-backup_nodered
 backup_data_dirs
 cleanup_old_backups
 
-LOG " Backup Process Finished Successfully."
+if [ "$INCOMPLETE" -eq 1 ]; then
+    WARN "Backup finished but is INCOMPLETE — review the warnings above."
+else
+    LOG " Backup Process Finished Successfully."
+fi
 LOG "Backup Location: ${BACKUP_PATH}"
+
+# Exit non-zero when incomplete so cron / callers can detect the failure.
+if [ "$INCOMPLETE" -eq 1 ]; then
+    exit 1
+fi

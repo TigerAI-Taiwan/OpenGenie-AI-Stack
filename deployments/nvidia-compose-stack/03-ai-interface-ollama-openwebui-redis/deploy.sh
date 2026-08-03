@@ -48,27 +48,26 @@ ensure_network() {
     docker network inspect ai_stack_net >/dev/null 2>&1 || docker network create ai_stack_net
 }
 
-check_db_schema() {
-    LOG "🔍 Verifying PostgreSQL connection and Schema..."
-    
-    # Check if Postgres container is running
+# --- Ensure the dedicated `openwebui` database exists (DB isolation) ---
+ensure_db() {
+    LOG "🔍 Verifying PostgreSQL connection and OpenWebUI database..."
     local PG_CONTAINER="${PG_HOST:-postgres}"
-    if ! docker ps --format '{{.Names}}' | grep -q "^${PG_CONTAINER}$"; then
-        ERROR "Database container '${PG_CONTAINER}' not found. Please start 02-database stack first."
+    if ! docker ps --format '{{.Names}}' | grep -qx "$PG_CONTAINER"; then
+        ERROR "PostgreSQL container '$PG_CONTAINER' not found. Please deploy 02-database first."
     fi
-
-    # Check and Create Schema
     local DB_USER="${PG_USER:-adm}"
-    local DB_NAME="${PG_DB_NAME:-tigerai}"
-    
-    SCHEMA_EXISTS=$(docker exec -i "$PG_CONTAINER" /usr/bin/env PGPASSWORD="${PG_PASS:-CHANGE_ME}" psql -U "$DB_USER" -d "$DB_NAME" -tAc "SELECT 1 FROM information_schema.schemata WHERE schema_name = '$OWUI_SCHEMA';")
-    
-    if [ "$SCHEMA_EXISTS" != "1" ]; then
-        LOG "⚠️  Schema '$OWUI_SCHEMA' does not exist. Creating it now..."
-        docker exec -i "$PG_CONTAINER" /usr/bin/env PGPASSWORD="${PG_PASS:-CHANGE_ME}" psql -U "$DB_USER" -d "$DB_NAME" -c "CREATE SCHEMA IF NOT EXISTS $OWUI_SCHEMA AUTHORIZATION $DB_USER;"
-        LOG "✅ Schema '$OWUI_SCHEMA' created successfully."
+    local DB_NAME="${OWUI_DB_NAME:-openwebui}"
+    local DB_EXISTS
+    DB_EXISTS=$(docker exec -i "$PG_CONTAINER" /usr/bin/env PGPASSWORD="${PG_PASS:-CHANGE_ME}" \
+        psql -U "$DB_USER" -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='$DB_NAME';")
+    if [ "$DB_EXISTS" = "1" ]; then
+        LOG "✅ Database '$DB_NAME' already exists."
     else
-        LOG "✅ Schema '$OWUI_SCHEMA' already exists."
+        LOG "⚠️  Database '$DB_NAME' does not exist. Creating it now..."
+        docker exec -i "$PG_CONTAINER" /usr/bin/env PGPASSWORD="${PG_PASS:-CHANGE_ME}" \
+            psql -U "$DB_USER" -d postgres -c "CREATE DATABASE $DB_NAME OWNER $DB_USER;" \
+            || ERROR "Failed to create database '$DB_NAME'."
+        LOG "✅ Database '$DB_NAME' created successfully."
     fi
 }
 
@@ -77,7 +76,7 @@ ensure_network
 
 case "$ACTION" in
     all)
-        check_db_schema
+        ensure_db
         LOG " [Phase 1] Starting Infrastructure (Redis & Ollama)..."
         docker compose up -d redis ollama
         
@@ -109,6 +108,7 @@ case "$ACTION" in
         docker compose up -d "$ACTION"
         ;;
     openwebui)
+        ensure_db
         LOG " Starting OpenWebUI Cluster..."
         docker compose up -d openwebui-main openwebui-worker-01 openwebui-worker-02
         ;;
