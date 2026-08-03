@@ -119,6 +119,14 @@ services:
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASS:-CHANGE_ME}
       - GF_USERS_ALLOW_SIGN_UP=false
+      # Use PostgreSQL as Grafana's internal DB (mirror k3s) so schema/state
+      # survive image upgrades without relying on the local SQLite volume.
+      - GF_DATABASE_TYPE=postgres
+      - GF_DATABASE_HOST=postgres:${PG_PORT:-5432}
+      - GF_DATABASE_NAME=${GF_DB_NAME:-grafana}
+      - GF_DATABASE_USER=${PG_USER:-adm}
+      - GF_DATABASE_PASSWORD=${PG_PASS:-CHANGE_ME}
+      - GF_DATABASE_SSL_MODE=disable
     volumes:
       - grafana_data:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning

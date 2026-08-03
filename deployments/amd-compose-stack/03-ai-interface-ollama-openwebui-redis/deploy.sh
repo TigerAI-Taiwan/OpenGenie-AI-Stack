@@ -36,22 +36,26 @@ usage() {
 PG_CONTAINER=${PG_HOST:-postgres}
 PG_USER=${PG_USER:-adm}
 PG_PASS=${PG_PASS:-CHANGE_ME}
-PG_DB=${PG_DB:-tigerai}
-OWUI_SCHEMA=${OWUI_SCHEMA:-openwebui}
+OWUI_DB_NAME=${OWUI_DB_NAME:-openwebui}
 
-# --- 1) Database Schema Check ---
-check_db_schema() {
-    LOG "🔍 Verifying PostgreSQL Schema for Open WebUI..."
-    
-    # Check if Postgres container is running
+# --- Ensure the dedicated `openwebui` database exists (DB isolation) ---
+ensure_db() {
+    LOG "🔍 Verifying PostgreSQL connection and OpenWebUI database..."
     if ! docker ps --format '{{.Names}}' | grep -qx "$PG_CONTAINER"; then
-        ERROR "PostgreSQL container '$PG_CONTAINER' not found. Please deploy infrastructure first."
+        ERROR "PostgreSQL container '$PG_CONTAINER' not found. Please deploy 02-database first."
     fi
-
-    # Create Schema if it doesn't exist
-    LOG "Ensuring schema '$OWUI_SCHEMA' exists in database '$PG_DB'..."
-    docker exec -i "$PG_CONTAINER" /usr/bin/env PGPASSWORD="$PG_PASS" psql -U "$PG_USER" -d "$PG_DB" -c "CREATE SCHEMA IF NOT EXISTS $OWUI_SCHEMA AUTHORIZATION $PG_USER;" || ERROR "Failed to create schema."
-    LOG "✅ Schema '$OWUI_SCHEMA' is ready."
+    local DB_EXISTS
+    DB_EXISTS=$(docker exec -i "$PG_CONTAINER" /usr/bin/env PGPASSWORD="$PG_PASS" \
+        psql -U "$PG_USER" -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname='$OWUI_DB_NAME';")
+    if [ "$DB_EXISTS" = "1" ]; then
+        LOG "✅ Database '$OWUI_DB_NAME' already exists."
+    else
+        LOG "⚠️  Database '$OWUI_DB_NAME' does not exist. Creating it now..."
+        docker exec -i "$PG_CONTAINER" /usr/bin/env PGPASSWORD="$PG_PASS" \
+            psql -U "$PG_USER" -d postgres -c "CREATE DATABASE $OWUI_DB_NAME OWNER $PG_USER;" \
+            || ERROR "Failed to create database '$OWUI_DB_NAME'."
+        LOG "✅ Database '$OWUI_DB_NAME' created successfully."
+    fi
 }
 
 # --- 2) Logic ---
@@ -66,7 +70,7 @@ ensure_network
 
 case "$ACTION" in
     all)
-        check_db_schema
+        ensure_db
         # Use TIGER_OWUI_WORKERS if available, otherwise use OWUI_WORKERS
         WORKER_COUNT=${TIGER_OWUI_WORKERS:-${OWUI_WORKERS:-2}}
         LOG " Starting AI Stack (Redis, Ollama, OpenWebUI: 1 main + $WORKER_COUNT workers)..."
@@ -78,7 +82,7 @@ case "$ACTION" in
         docker compose up -d "$ACTION"
         ;;
     openwebui)
-        check_db_schema
+        ensure_db
         LOG " Starting OpenWebUI..."
         docker compose up -d openwebui
         ;;

@@ -22,9 +22,9 @@ fi
 # Prefer explicit DB_POSTGRESDB_* ; fall back to generic PG_* ; finally hard default.
 export DB_POSTGRESDB_USER="${DB_POSTGRESDB_USER:-${PG_USER:-adm}}"
 export DB_POSTGRESDB_PASSWORD="${DB_POSTGRESDB_PASSWORD:-${PG_PASS:-CHANGE_ME}}"
-export DB_POSTGRESDB_DATABASE="${DB_POSTGRESDB_DATABASE:-${PG_DB_NAME:-tigerai}}"
+export DB_POSTGRESDB_DATABASE="${DB_POSTGRESDB_DATABASE:-n8n}"
 export DB_POSTGRESDB_HOST="${DB_POSTGRESDB_HOST:-postgres}"
-export DB_POSTGRESDB_SCHEMA="${DB_POSTGRESDB_SCHEMA:-n8n}"
+export DB_POSTGRESDB_SCHEMA="${DB_POSTGRESDB_SCHEMA:-public}"
 export REDIS_HOST="${REDIS_HOST:-redis}"
 export N8N_DIR="${N8N_DIR:-/home/wrt/TigerAI/node/n8n}"
 export FILES_DIR="${FILES_DIR:-/home/wrt/TigerAI/node/n8n/files}"
@@ -44,20 +44,29 @@ usage() {
     exit 1
 }
 
-# --- 1) Database Schema Check ---
-check_db_schema() {
-    LOG "🔍 Verifying PostgreSQL Schema for n8n..."
-
-    # Check if Postgres container is running
-    local PG_CONTAINER="${DB_POSTGRESDB_HOST:-postgres}"
+# --- 1) Ensure dedicated n8n database exists ---
+ensure_db() {
+    LOG "🔍 Ensuring dedicated PostgreSQL database '$DB_POSTGRESDB_DATABASE' for n8n..."
+    local PG_CONTAINER=${DB_POSTGRESDB_HOST:-postgres}
     if ! docker ps --format '{{.Names}}' | grep -qx "$PG_CONTAINER"; then
         ERROR "PostgreSQL container '$PG_CONTAINER' not found. Please deploy infrastructure first."
     fi
-
-    # Create Schema if it doesn't exist
-    LOG "Ensuring schema '$DB_POSTGRESDB_SCHEMA' exists in database '$DB_POSTGRESDB_DATABASE'..."
-    docker exec -i "$PG_CONTAINER" /usr/bin/env PGPASSWORD="$DB_POSTGRESDB_PASSWORD" psql -U "$DB_POSTGRESDB_USER" -d "$DB_POSTGRESDB_DATABASE" -c "CREATE SCHEMA IF NOT EXISTS $DB_POSTGRESDB_SCHEMA AUTHORIZATION $DB_POSTGRESDB_USER;" || ERROR "Failed to create schema."
-    LOG "✅ Schema '$DB_POSTGRESDB_SCHEMA' is ready."
+    # CREATE DATABASE has no IF NOT EXISTS and cannot run in a transaction — SELECT-guard (idempotent).
+    local DB_EXISTS
+    DB_EXISTS=$(docker exec -i "$PG_CONTAINER" /usr/bin/env PGPASSWORD="$DB_POSTGRESDB_PASSWORD" \
+        psql -U "$DB_POSTGRESDB_USER" -d postgres -tAc \
+        "SELECT 1 FROM pg_database WHERE datname='$DB_POSTGRESDB_DATABASE';" 2>/dev/null || true)
+    if [ "$DB_EXISTS" = "1" ]; then
+        LOG "✅ Database '$DB_POSTGRESDB_DATABASE' already exists — skipping creation."
+    else
+        LOG "Creating database '$DB_POSTGRESDB_DATABASE' (owner $DB_POSTGRESDB_USER)..."
+        docker exec -i "$PG_CONTAINER" /usr/bin/env PGPASSWORD="$DB_POSTGRESDB_PASSWORD" \
+            psql -U "$DB_POSTGRESDB_USER" -d postgres \
+            -c "CREATE DATABASE $DB_POSTGRESDB_DATABASE OWNER $DB_POSTGRESDB_USER;" \
+            || ERROR "Failed to create database '$DB_POSTGRESDB_DATABASE'."
+        LOG "✅ Database '$DB_POSTGRESDB_DATABASE' created."
+    fi
+    # Schema 'public' already exists in every new database — no schema creation needed.
 }
 
 # --- 2) Logic ---
@@ -88,7 +97,7 @@ ensure_network
 
 case "$ACTION" in
     all)
-        check_db_schema
+        ensure_db
         # Use TIGER_N8N_WORKERS if available, otherwise use N8N_WORKERS / default
         WORKER_COUNT=${TIGER_N8N_WORKERS:-${N8N_WORKERS:-2}}
         LOG " Starting n8n Full Stack with $WORKER_COUNT workers..."
@@ -96,12 +105,12 @@ case "$ACTION" in
         LOG "✅ n8n deployed: 1 main + $WORKER_COUNT workers"
         ;;
     main)
-        check_db_schema
+        ensure_db
         LOG " Starting n8n Main only..."
         docker compose up -d n8n-main
         ;;
     worker)
-        check_db_schema
+        ensure_db
         WORKER_COUNT=${TIGER_N8N_WORKERS:-${N8N_WORKERS:-2}}
         LOG " Launching n8n Workflow Engine (Queue Mode) with $WORKER_COUNT workers..."
         docker compose up -d --scale n8n-worker=$WORKER_COUNT
