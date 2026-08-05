@@ -31,6 +31,12 @@ services:
     image: ${DCGM_EXPORTER_IMAGE:-nvcr.io/nvidia/k8s/dcgm-exporter:4.5.2-4.8.1-ubuntu22.04}
     container_name: gpu-exporter
     restart: always
+    # dcgm-exporter 4.x images default to a non-root user, but the embedded
+    # nv-hostengine needs root to watch GPU fields ("Host engine is running
+    # as non-root" restart loop otherwise). SYS_ADMIN enables profiling metrics.
+    user: root
+    cap_add:
+      - SYS_ADMIN
     healthcheck:
       test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/9400"]
       interval: 30s
@@ -119,8 +125,16 @@ services:
     ports:
       - "${GRAFANA_PORT:-3000}:3000"
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=CHANGE_ME
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASS:-CHANGE_ME}
       - GF_USERS_ALLOW_SIGN_UP=false
+      # Use PostgreSQL as Grafana's internal DB (mirror k3s) so schema/state
+      # survive image upgrades without relying on the local SQLite volume.
+      - GF_DATABASE_TYPE=postgres
+      - GF_DATABASE_HOST=postgres:${PG_PORT:-5432}
+      - GF_DATABASE_NAME=${GF_DB_NAME:-grafana}
+      - GF_DATABASE_USER=${PG_USER:-adm}
+      - GF_DATABASE_PASSWORD=${PG_PASS:-CHANGE_ME}
+      - GF_DATABASE_SSL_MODE=disable
     volumes:
       - grafana_data:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning

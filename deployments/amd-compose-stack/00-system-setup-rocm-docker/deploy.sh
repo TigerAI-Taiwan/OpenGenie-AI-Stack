@@ -34,7 +34,7 @@ ERROR(){ echo -e "${RED}[TigerAI ERROR]${NC} $*"; exit 1; }
 
 # ----------------------- 2) 安裝 ROCm -----------------------
 install_rocm() {
-    LOG "📦 [1/4] 安裝 ROCm..."
+    LOG "📦 [1/3] 安裝 ROCm..."
 
     # 刪除可能存在的損壞檔案
     if [ -f "$DEB_FILENAME" ] && [ ! -s "$DEB_FILENAME" ]; then
@@ -76,7 +76,7 @@ install_rocm() {
 
 # ----------------------- 3) 安裝 Docker -----------------------
 install_docker() {
-    LOG "🐳 [2/4] 安裝 Docker..."
+    LOG "🐳 [2/3] 安裝 Docker..."
 
     if command -v docker &>/dev/null; then
         SKIP "Docker 已存在，跳過安裝"
@@ -98,7 +98,7 @@ install_docker() {
 
 # ----------------------- 4) 系統優化 -----------------------
 configure_system() {
-    LOG "🖥️ [3/4] 系統優化..."
+    LOG "🖥️ [3/3] 系統優化..."
 
     # GDM3 設定
     GDM_CONFIG="/etc/gdm3/custom.conf"

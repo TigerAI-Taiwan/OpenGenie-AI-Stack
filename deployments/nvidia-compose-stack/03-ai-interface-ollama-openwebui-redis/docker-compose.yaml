@@ -72,7 +72,7 @@ services:
       - OPENWEBUI_ROLE=web
       - WORKERS=${GUNICORN_WORKERS:-4}
       - REDIS_URL=redis://redis:6379/1
-      - DATABASE_URL=postgresql://${PG_USER:-adm}:${PG_PASS:-CHANGE_ME}@${PG_HOST:-postgres}:5432/${PG_DB_NAME:-tigerai}?options=-csearch_path=${OWUI_SCHEMA:-openwebui}
+      - DATABASE_URL=postgresql://${PG_USER:-adm}:${PG_PASS:-CHANGE_ME}@${PG_HOST:-postgres}:5432/${OWUI_DB_NAME:-openwebui}
       - OLLAMA_API_BASE_URL=http://ollama:11434
       - WEBUI_SECRET_KEY=${OWUI_SECRET_KEY:-CHANGE_ME}
       - AIOHTTP_CLIENT_TIMEOUT=${AIOHTTP_TIMEOUT:-900}
@@ -107,7 +107,7 @@ services:
       - OPEN_WEBUI_MODE=queue
       - OPENWEBUI_ROLE=worker
       - REDIS_URL=redis://redis:6379/1
-      - DATABASE_URL=postgresql://${PG_USER:-adm}:${PG_PASS:-CHANGE_ME}@${PG_HOST:-postgres}:5432/${PG_DB_NAME:-tigerai}?options=-csearch_path=${OWUI_SCHEMA:-openwebui}
+      - DATABASE_URL=postgresql://${PG_USER:-adm}:${PG_PASS:-CHANGE_ME}@${PG_HOST:-postgres}:5432/${OWUI_DB_NAME:-openwebui}
       - OLLAMA_API_BASE_URL=http://ollama:11434
       - WEBUI_SECRET_KEY=${OWUI_SECRET_KEY:-CHANGE_ME}
       - AIOHTTP_CLIENT_TIMEOUT=${AIOHTTP_TIMEOUT:-900}
@@ -142,7 +142,7 @@ services:
       - OPEN_WEBUI_MODE=queue
       - OPENWEBUI_ROLE=worker
       - REDIS_URL=redis://redis:6379/1
-      - DATABASE_URL=postgresql://${PG_USER:-adm}:${PG_PASS:-CHANGE_ME}@${PG_HOST:-postgres}:5432/${PG_DB_NAME:-tigerai}?options=-csearch_path=${OWUI_SCHEMA:-openwebui}
+      - DATABASE_URL=postgresql://${PG_USER:-adm}:${PG_PASS:-CHANGE_ME}@${PG_HOST:-postgres}:5432/${OWUI_DB_NAME:-openwebui}
       - OLLAMA_API_BASE_URL=http://ollama:11434
       - WEBUI_SECRET_KEY=${OWUI_SECRET_KEY:-CHANGE_ME}
       - AIOHTTP_CLIENT_TIMEOUT=${AIOHTTP_TIMEOUT:-900}

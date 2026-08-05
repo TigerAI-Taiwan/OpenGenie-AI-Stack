@@ -50,12 +50,6 @@ wait_for_db() {
     done
 }
 
-init_schemas() {
-    LOG " Initializing Schemas..."
-    docker exec -i postgres psql -U "$PG_USER" -d "$PG_DB" -c "CREATE SCHEMA IF NOT EXISTS n8n AUTHORIZATION $PG_USER;"
-    docker exec -i postgres psql -U "$PG_USER" -d "$PG_DB" -c "CREATE SCHEMA IF NOT EXISTS openwebui AUTHORIZATION $PG_USER;"
-}
-
 ACTION=$1
 ensure_network
 
@@ -64,13 +58,12 @@ case "$ACTION" in
         LOG " Starting Database Stack (Postgres, pgAdmin)..."
         docker compose up -d
         wait_for_db
-        init_schemas
         LOG "✅ Database bootstrap completed."
         ;;
     postgres|pgadmin)
         LOG " Starting specific service: $ACTION..."
         docker compose up -d "$ACTION"
-        [ "$ACTION" == "postgres" ] && wait_for_db && init_schemas
+        [ "$ACTION" == "postgres" ] && wait_for_db
         ;;
     down)
         LOG " Stopping database services..."

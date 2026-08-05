@@ -7,12 +7,20 @@
 set -eo pipefail
 
 # --- 0) Configuration ---
-if [ -f .env ]; then
-  export $(grep -v '^#' .env | xargs)
-fi
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Load env: tiger-tuning (hardware defaults) → ../.env (parent/root) → .env (local, highest priority)
+# Anchored to script dir so cron (arbitrary CWD) still resolves the root stack .env
+[ -f "$SCRIPT_DIR/../tiger-tuning.env" ] && export $(grep -v '^#' "$SCRIPT_DIR/../tiger-tuning.env" | sed 's/\r//g' | xargs)
+[ -f "$SCRIPT_DIR/../.env" ] && export $(grep -v '^#' "$SCRIPT_DIR/../.env" | sed 's/\r//g' | xargs)
+[ -f "$SCRIPT_DIR/.env" ] && export $(grep -v '^#' "$SCRIPT_DIR/.env" | sed 's/\r//g' | xargs)
+
+# In-script defaults (env cascade above overrides these when set)
+BASE_DIR=${BASE_DIR:-/home/wrt/TigerAI}
+PG_CONTAINER=${PG_CONTAINER:-postgres}
+# DATA_DIRS unset -> back up everything under BASE_DIR (space-separated list to narrow)
+DATA_DIRS=${DATA_DIRS:-"$BASE_DIR"}
 
 BACKUP_ROOT=${BACKUP_ROOT:-"/opt/tigerai/backups"}
-NODERED_DATA=${NODERED_DATA:-"/root/.node-red"}
 
 LOG_PREFIX="TigerAI Restore"
 GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; BLUE='\033[0;34m'; NC='\033[0m'
@@ -20,9 +28,28 @@ LOG(){ echo -e "${GREEN}[$LOG_PREFIX INFO]${NC} $*"; }
 WARN(){ echo -e "${YELLOW}[$LOG_PREFIX WARN]${NC} $*"; }
 ERROR(){ echo -e "${RED}[$LOG_PREFIX ERROR]${NC} $*"; exit 1; }
 
+# Confirmation gate for destructive actions. Skipped when ASSUME_YES=1 or -y is
+# passed (for automation); aborts on a non-interactive stdin unless bypassed.
+ASSUME_YES=${ASSUME_YES:-0}
+confirm() {
+    if [ "$ASSUME_YES" = "1" ]; then
+        WARN "ASSUME_YES set; proceeding without confirmation: $1"
+        return 0
+    fi
+    if [ ! -t 0 ]; then
+        ERROR "Refusing destructive action on non-interactive stdin. Re-run with -y or ASSUME_YES=1: $1"
+    fi
+    WARN "$1"
+    printf "Type 'yes' to continue: "
+    local reply
+    read -r reply
+    [ "$reply" = "yes" ] || ERROR "Aborted by user."
+}
+
 usage() {
-    echo "Usage: sudo $0 [backup_date_folder] {all | db | nodered | data}"
+    echo "Usage: sudo $0 [-y] [backup_date_folder] {all | db | data}"
     echo "Example: sudo $0 20260202_120000 all"
+    echo "  -y / ASSUME_YES=1  skip the overwrite confirmation (non-interactive)"
     echo ""
     echo "Available backups in $BACKUP_ROOT:"
     ls -1 "$BACKUP_ROOT" 2>/dev/null || echo "  (None found)"
@@ -31,90 +58,119 @@ usage() {
 
 # --- Validation ---
 [ "$(id -u)" -ne 0 ] && ERROR "Please run with sudo."
+[ "$1" = "-y" ] && { ASSUME_YES=1; shift; }
 [ $# -lt 2 ] && usage
 
-RESTORE_DIR="${BACKUP_ROOT:-"/opt/tigerai/backups"}/$1"
+RESTORE_DIR="${BACKUP_ROOT}/$1"
 TARGET=$2
 
 [ ! -d "$RESTORE_DIR" ] && ERROR "Backup directory $RESTORE_DIR does not exist."
 
 # --- 1) Restore Database ---
+# Handles per-DB dumps (db_<name>.sql.gz, one file per app database). Falls back
+# to the legacy single-DB dump (database.sql.gz -> $PG_DB_NAME) for old backups.
 restore_db() {
-    local file="${RESTORE_DIR}/database.sql.gz"
-    LOG " [1/3] Restoring PostgreSQL Database..."
-    if [ -f "$file" ]; then
-        if docker ps | grep -q "$PG_CONTAINER"; then
-            LOG "Dropping and re-creating database $PG_DB_NAME..."
-            docker exec "$PG_CONTAINER" dropdb -U "$PG_USER" --if-exists "$PG_DB_NAME"
-            docker exec "$PG_CONTAINER" createdb -U "$PG_USER" "$PG_DB_NAME"
-            LOG "Importing data from $file..."
-            gunzip -c "$file" | docker exec -i "$PG_CONTAINER" psql -U "$PG_USER" "$PG_DB_NAME"
-            LOG " Database restoration complete."
-        else
-            ERROR "PostgreSQL container ($PG_CONTAINER) is not running."
-        fi
-    else
-        WARN "Database backup file not found in $RESTORE_DIR."
+    LOG " [1/2] Restoring PostgreSQL Databases..."
+    if ! docker ps --format '{{.Names}}' | grep -qx "$PG_CONTAINER"; then
+        ERROR "PostgreSQL container ($PG_CONTAINER) is not running."
     fi
+
+    local file db
+    local dbs=()
+    for file in "${RESTORE_DIR}"/db_*.sql.gz; do
+        [ -f "$file" ] || continue
+        db=$(basename "$file" .sql.gz); db=${db#db_}
+        dbs+=("$db")
+    done
+
+    # Backward-compat: legacy backups stored a single database.sql.gz -> $PG_DB_NAME.
+    local legacy="${RESTORE_DIR}/database.sql.gz"
+    local has_legacy=0
+    [ "${#dbs[@]}" -eq 0 ] && [ -f "$legacy" ] && has_legacy=1
+
+    if [ "${#dbs[@]}" -eq 0 ] && [ "$has_legacy" -eq 0 ]; then
+        WARN "No database backup files (db_*.sql.gz or database.sql.gz) found in $RESTORE_DIR."
+        return
+    fi
+
+    WARN "This will DROP and re-create the following databases (all current data in them is lost):"
+    if [ "$has_legacy" -eq 1 ]; then
+        echo "    - ${PG_DB_NAME} (from legacy database.sql.gz)"
+    else
+        for db in "${dbs[@]}"; do echo "    - ${db}"; done
+    fi
+    confirm "Drop and re-create the databases listed above?"
+
+    if [ "$has_legacy" -eq 1 ]; then
+        LOG "Restoring legacy dump into '${PG_DB_NAME}'..."
+        docker exec "$PG_CONTAINER" dropdb -U "$PG_USER" --if-exists "$PG_DB_NAME"
+        docker exec "$PG_CONTAINER" createdb -U "$PG_USER" "$PG_DB_NAME"
+        gunzip -c "$legacy" | docker exec -i "$PG_CONTAINER" psql -U "$PG_USER" "$PG_DB_NAME"
+    else
+        for db in "${dbs[@]}"; do
+            file="${RESTORE_DIR}/db_${db}.sql.gz"
+            LOG "Restoring '${db}' from $(basename "$file")..."
+            docker exec "$PG_CONTAINER" dropdb -U "$PG_USER" --if-exists "$db"
+            docker exec "$PG_CONTAINER" createdb -U "$PG_USER" "$db"
+            gunzip -c "$file" | docker exec -i "$PG_CONTAINER" psql -U "$PG_USER" "$db"
+        done
+    fi
+    LOG " Database restoration complete."
 }
 
-# --- 2) Restore Node-RED ---
-restore_nodered() {
-    local file="${RESTORE_DIR}/nodered_config.tar.gz"
-    LOG " [2/3] Restoring Node-RED Configurations..."
-    if [ -f "$file" ]; then
-        sudo systemctl stop nodered || true
-        sudo mkdir -p "$NODERED_DATA"
-        sudo tar -xzf "$file" -C "$NODERED_DATA"
-        sudo systemctl start nodered
-        LOG " Node-RED restoration complete and service restarted."
-    else
-        WARN "Node-RED backup file not found."
-    fi
-}
-
-# --- 3) Restore Data Directories ---
+# --- 2) Restore Data Directories ---
 restore_data() {
-    LOG " [3/3] Restoring Application Data Volumes..."
-    # Note: Requires services to be stopped for safety
-    WARN "This will overwrite existing data in $DATA_DIRS. Services should be stopped."
-    
+    LOG " [2/2] Restoring Application Data Volumes..."
+
+    local manifest="${RESTORE_DIR}/data-paths.manifest"
+    local file tar_name target_path entry
+    local targets=()
+
+    # Resolve each archive to its recorded source path first (round-trip via the
+    # manifest) so we can show exactly what will be overwritten before touching disk.
     for file in "${RESTORE_DIR}"/data_*.tar.gz; do
-        if [ -f "$file" ]; then
-            # Extract folder name from data_NAME.tar.gz
-            local base_name=$(basename "$file" .tar.gz)
-            local folder_name="${base_name#data_}"
-            local target_path="/opt/tigerai/${folder_name}"
-            
-            LOG "Restoring $folder_name to $target_path..."
-            sudo mkdir -p "$target_path"
-            sudo tar -xzf "$file" -C "$target_path"
+        [ -f "$file" ] || continue
+        tar_name=$(basename "$file")
+        target_path=""
+        [ -f "$manifest" ] && target_path=$(grep -F "${tar_name}=" "$manifest" | head -n1 | cut -d= -f2-) || true
+        if [ -z "$target_path" ]; then
+            WARN "No source path recorded for ${tar_name}; skipping to avoid restoring to the wrong location."
+            continue
         fi
+        targets+=("${tar_name}=${target_path}")
+    done
+
+    if [ "${#targets[@]}" -eq 0 ]; then
+        WARN "No restorable data archives found in $RESTORE_DIR."
+        return
+    fi
+
+    WARN "This will OVERWRITE existing data at the following paths (services should be stopped):"
+    for entry in "${targets[@]}"; do
+        echo "    - ${entry#*=}"
+    done
+    confirm "Overwrite the data paths listed above?"
+
+    for entry in "${targets[@]}"; do
+        tar_name="${entry%%=*}"
+        target_path="${entry#*=}"
+        file="${RESTORE_DIR}/${tar_name}"
+        LOG "Restoring ${tar_name} to ${target_path}..."
+        sudo mkdir -p "$target_path"
+        sudo tar -xzf "$file" -C "$target_path"
     done
     LOG " Data volumes restoration complete."
 }
 
 # --- Execution ---
 LOG " Starting restoration from $RESTORE_DIR..."
-
 case "$TARGET" in
     all)
         restore_db
-        restore_nodered
         restore_data
         ;;
-    db)
-        restore_db
-        ;;
-    nodered)
-        restore_nodered
-        ;;
-    data)
-        restore_data
-        ;;
-    *)
-        usage
-        ;;
+    db) restore_db ;;
+    data) restore_data ;;
+    *) usage ;;
 esac
-
 LOG " Restoration Process Finished."

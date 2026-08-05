@@ -30,7 +30,6 @@ fi
 # Service List to Monitor
 SERVICES=(
     "Portainer:http://$TARGET_HOST:9000"
-    "Node-RED:http://$TARGET_HOST:1880"
     "Ollama:http://$TARGET_HOST:11434"
     "n8n:http://$TARGET_HOST:5678/healthz"
     "OpenWebUI:http://$TARGET_HOST:8080/health"

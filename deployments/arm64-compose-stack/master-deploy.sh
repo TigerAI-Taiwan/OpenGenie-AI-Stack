@@ -47,7 +47,7 @@ usage() {
     echo "  init   : Install GPU driver if needed (prompts reboot), then run hardware advisor"
     echo "  all    : Execute full deployment (from Phase 00 to 13)"
     echo "  restart: Restart all services in the stack"
-    echo "  system : Execute Phase 00 system initialization (NVIDIA/Docker/Node-RED)"
+    echo "  system : Execute Phase 00 system initialization (NVIDIA/Docker)"
     echo "  app    : Execute App layer core services deployment"
     echo "  status : Check ARM64 container status"
     echo "  test   : Execute system-wide health check"
