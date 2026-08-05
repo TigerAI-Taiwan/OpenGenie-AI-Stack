@@ -19,6 +19,7 @@
 | **DB-rename migrations** | `migrations/n8n-db-rename-migration.sh`, `migrations/openwebui-db-rename-migration.sh` (new, stack root) | Idempotent, force-stop, atomic migration from the old schema-in-`tigerai` layout to the dedicated DBs |
 | **Dynamic multi-DB backup/restore** | `08-backup-recovery/{backup,restore}-tigerai.sh` | Backup enumerates every non-template DB dynamically (`db_<name>.sql.gz`); restore loops per-DB with a legacy single-DB fallback + confirmation gate + path manifest |
 | **Grafana PostgreSQL backend** | `10-observability-grafana/{deploy.sh,docker-compose.yaml}`, `.env.example` | Grafana switches its internal state store from SQLite to a dedicated `grafana` PostgreSQL database; `deploy.sh` `ensure_db` creates it |
+| **dcgm-exporter root + SYS_ADMIN** (nvidia + arm64 only) | `10-observability-grafana/docker-compose.yaml` (`gpu-exporter`) | dcgm-exporter 4.x needs root + `SYS_ADMIN` to watch GPU fields; add them to stop the non-root restart loop. amd uses the ROCm exporter — untouched |
 
 Consistency: backup/restore scripts and both migration scripts are **byte-identical across all three
 stacks**. The n8n/OpenWebUI DB edits and the Grafana `GF_DATABASE_*` block are the **same edit** in each
@@ -354,6 +355,35 @@ covers the new `grafana` DB automatically.
 
 ---
 
+### 9. dcgm-exporter — run as root + SYS_ADMIN (NVIDIA stacks only)
+
+**Why.** dcgm-exporter 4.x images default to a non-root user, but the embedded nv-hostengine needs root to
+watch GPU fields — otherwise it fails with "Host engine is running as non-root" and restart-loops. `SYS_ADMIN`
+is required by DCGM for field/profiling access (NVIDIA's own GPU Operator uses it too).
+
+**Where.** `10-observability-grafana/docker-compose.yaml`, the `gpu-exporter` service — **NVIDIA stacks only**
+(nvidia + arm64, which run `dcgm-exporter`). The amd stack uses `rocm/device-metrics-exporter` (a different
+exporter without this issue) → **do not add** these to amd.
+
+```yaml
+  gpu-exporter:
+    image: ${DCGM_EXPORTER_IMAGE:-nvcr.io/nvidia/k8s/dcgm-exporter:4.5.2-4.8.1-ubuntu22.04}
+    container_name: gpu-exporter
+    restart: always
+    # dcgm-exporter 4.x images default to a non-root user, but the embedded
+    # nv-hostengine needs root to watch GPU fields ("Host engine is running
+    # as non-root" restart loop otherwise). SYS_ADMIN enables profiling metrics.
+    user: root
+    cap_add:
+      - SYS_ADMIN
+```
+
+> If OpenGenie's dashboards only use standard `DCGM_FI_DEV_*` fields (no `DCGM_FI_PROF_*`), an alternative
+> is a custom metrics CSV that excludes profiling fields — then no root/SYS_ADMIN is needed. This record
+> ports the root+SYS_ADMIN approach as applied upstream.
+
+---
+
 ## Verification (in the OpenGenie repo, per stack)
 
 ```bash
@@ -364,6 +394,10 @@ grep -RL "search_path"                     deployments/*-compose-stack/03-ai-int
 
 # Grafana on PG
 grep -R "GF_DATABASE_TYPE=postgres"        deployments/*-compose-stack/10-observability-grafana/docker-compose.yaml
+
+# dcgm-exporter root+SYS_ADMIN — NVIDIA stacks only (nvidia + arm64), NOT amd
+grep -l "SYS_ADMIN" deployments/{nvidia,arm64}-compose-stack/10-observability-grafana/docker-compose.yaml
+grep -L "SYS_ADMIN" deployments/amd-compose-stack/10-observability-grafana/docker-compose.yaml  # amd should NOT have it
 
 # Node-RED fully gone
 grep -R "node-red\|nodered\|1880\|NODE_RED" deployments/*-compose-stack/ ; echo "expect: no matches"
