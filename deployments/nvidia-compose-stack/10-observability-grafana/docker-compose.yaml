@@ -31,6 +31,12 @@ services:
     image: ${DCGM_EXPORTER_IMAGE:-nvcr.io/nvidia/k8s/dcgm-exporter:4.5.2-4.8.1-ubuntu22.04}
     container_name: gpu-exporter
     restart: always
+    # dcgm-exporter 4.x images default to a non-root user, but the embedded
+    # nv-hostengine needs root to watch GPU fields ("Host engine is running
+    # as non-root" restart loop otherwise). SYS_ADMIN enables profiling metrics.
+    user: root
+    cap_add:
+      - SYS_ADMIN
     healthcheck:
       test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/9400"]
       interval: 30s
