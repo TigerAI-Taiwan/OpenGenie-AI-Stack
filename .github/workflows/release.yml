@@ -43,21 +43,26 @@ jobs:
           set -euo pipefail
           CHANGELOG="docs/CHANGELOG.md"
 
-          gh api "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
-            -f tag_name="${TAG}" \
-            --jq .body > /tmp/auto-notes.md
-
           CHANGELOG_REF="${TAG}"
-          if ! git cat-file -e "${TAG}:${CHANGELOG}" 2>/dev/null; then
+          if git cat-file -e "${TAG}:${CHANGELOG}" 2>/dev/null; then
+            git show "${TAG}:${CHANGELOG}" > /tmp/changelog.md
+          else
             CHANGELOG_REF="main"
+            cp "${CHANGELOG}" /tmp/changelog.md
           fi
 
+          awk -v tag="${TAG}" '
+            index($0, "## [" tag "]") == 1 { found = 1 }
+            found && printed && ($0 ~ /^## \[/ || $0 ~ /^\[v[0-9]/) { exit }
+            found { print; printed = 1 }
+            END { if (!found) exit 1 }
+          ' /tmp/changelog.md > /tmp/release-body.md
+
           {
-            cat /tmp/auto-notes.md
             printf '\n\n---\n\n'
             printf '[Project Changelog](https://github.com/%s/blob/%s/%s)\n' \
               "${GITHUB_REPOSITORY}" "${CHANGELOG_REF}" "${CHANGELOG}"
-          } > /tmp/release-body.md
+          } >> /tmp/release-body.md
 
           gh release create "${TAG}" \
             --title "${TAG}" \
