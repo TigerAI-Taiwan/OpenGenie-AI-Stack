@@ -1,0 +1,65 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing v* tag to release"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Validate tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "${TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid release tag: ${TAG}" >&2
+            exit 1
+          fi
+          git fetch --force origin "refs/tags/${TAG}:refs/tags/${TAG}"
+          git rev-parse --verify "refs/tags/${TAG}"
+
+      - name: Create release
+        shell: bash
+        run: |
+          set -euo pipefail
+          CHANGELOG="docs/CHANGELOG.md"
+
+          gh api "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
+            -f tag_name="${TAG}" \
+            --jq .body > /tmp/auto-notes.md
+
+          CHANGELOG_REF="${TAG}"
+          if ! git cat-file -e "${TAG}:${CHANGELOG}" 2>/dev/null; then
+            CHANGELOG_REF="main"
+          fi
+
+          {
+            cat /tmp/auto-notes.md
+            printf '\n\n---\n\n'
+            printf '[Project Changelog](https://github.com/%s/blob/%s/%s)\n' \
+              "${GITHUB_REPOSITORY}" "${CHANGELOG_REF}" "${CHANGELOG}"
+          } > /tmp/release-body.md
+
+          gh release create "${TAG}" \
+            --title "${TAG}" \
+            --notes-file /tmp/release-body.md \
+            --verify-tag
