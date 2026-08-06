@@ -41,27 +41,27 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          CHANGELOG="docs/CHANGELOG.md"
+          RELEASE_NOTE="docs/${TAG}/RELEASE-NOTE.md"
 
-          CHANGELOG_REF="${TAG}"
-          if git cat-file -e "${TAG}:${CHANGELOG}" 2>/dev/null; then
-            git show "${TAG}:${CHANGELOG}" > /tmp/changelog.md
+          RELEASE_NOTE_REF="${TAG}"
+          if git cat-file -e "${TAG}:${RELEASE_NOTE}" 2>/dev/null; then
+            git show "${TAG}:${RELEASE_NOTE}" > /tmp/full-release-note.md
           else
-            CHANGELOG_REF="main"
-            cp "${CHANGELOG}" /tmp/changelog.md
+            RELEASE_NOTE_REF="main"
+            cp "${RELEASE_NOTE}" /tmp/full-release-note.md
           fi
 
-          awk -v tag="${TAG}" '
-            index($0, "## [" tag "]") == 1 { found = 1 }
-            found && printed && ($0 ~ /^## \[/ || $0 ~ /^\[v[0-9]/) { exit }
+          awk '
+            /^## What.s Changed$/ { found = 1 }
+            found && printed && /^## Release Details$/ { exit }
             found { print; printed = 1 }
             END { if (!found) exit 1 }
-          ' /tmp/changelog.md > /tmp/release-body.md
+          ' /tmp/full-release-note.md > /tmp/release-body.md
 
           {
             printf '\n\n---\n\n'
-            printf '[Project Changelog](https://github.com/%s/blob/%s/%s)\n' \
-              "${GITHUB_REPOSITORY}" "${CHANGELOG_REF}" "${CHANGELOG}"
+            printf '[Full Release Note](https://github.com/%s/blob/%s/%s)\n' \
+              "${GITHUB_REPOSITORY}" "${RELEASE_NOTE_REF}" "${RELEASE_NOTE}"
           } >> /tmp/release-body.md
 
           gh release create "${TAG}" \
