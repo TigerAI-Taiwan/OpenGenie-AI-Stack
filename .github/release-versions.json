@@ -1,0 +1,56 @@
+[
+  {
+    "tag": "v1.0.0",
+    "commit": "cbb4094e99d92d81ca2c98b3a2e6f8aea23c4685",
+    "pr": 8,
+    "note": "docs/v1.0.0/RELEASE-NOTE.md",
+    "tagMessage": "Release v1.0.0: 更新 skills 與多顯卡判斷",
+    "backfill": false,
+    "makeLatest": false
+  },
+  {
+    "tag": "v1.1.0",
+    "commit": "677f1dc2c1189d7904230b009f293be4ecc88001",
+    "pr": 9,
+    "note": "docs/v1.1.0/RELEASE-NOTE.md",
+    "tagMessage": "Release v1.1.0: 同步健康檢查與核心服務設定",
+    "backfill": true,
+    "makeLatest": false
+  },
+  {
+    "tag": "v1.2.0",
+    "commit": "572d95b621330b95a69324d4d1432ec373971306",
+    "pr": 10,
+    "note": "docs/v1.2.0/RELEASE-NOTE.md",
+    "tagMessage": "Release v1.2.0: 整併部署檔案",
+    "backfill": true,
+    "makeLatest": false
+  },
+  {
+    "tag": "v1.2.1",
+    "commit": "1c380a5823e0cde1234cb1e4fd12fd837aa1c76f",
+    "pr": 11,
+    "note": "docs/v1.2.1/RELEASE-NOTE.md",
+    "tagMessage": "Release v1.2.1: 修正 NVIDIA/ARM64 Lemonade GPU 偵測",
+    "backfill": true,
+    "makeLatest": false
+  },
+  {
+    "tag": "v1.3.0",
+    "commit": "ae29018735bd76266e7d5499a8fe2cee40558818",
+    "pr": 12,
+    "note": "docs/v1.3.0/RELEASE-NOTE.md",
+    "tagMessage": "Release v1.3.0: 新增 n8n stdout 日誌整合",
+    "backfill": true,
+    "makeLatest": false
+  },
+  {
+    "tag": "v2.0.0",
+    "commit": "a87452855f46cf4fdf2f1140a1f536dc7e6a9543",
+    "pr": 13,
+    "note": "docs/v2.0.0/RELEASE-NOTE.md",
+    "tagMessage": "Release v2.0.0: 移除 Node-RED 並隔離資料庫",
+    "backfill": true,
+    "makeLatest": true
+  }
+]
