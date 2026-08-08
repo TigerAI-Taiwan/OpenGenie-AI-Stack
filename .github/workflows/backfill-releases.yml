@@ -1,0 +1,279 @@
+name: Backfill Historical Releases
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/release-versions.json"
+      - ".github/workflows/backfill-releases.yml"
+      - "docs/v*/RELEASE-NOTE.md"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: backfill-historical-releases
+  cancel-in-progress: false
+
+jobs:
+  backfill:
+    name: Create missing historical tags and releases
+    if: github.repository == 'nightsky4765/OpenGenie-AI-Stack_v1'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Validate manifest and backfill releases
+        uses: actions/github-script@v9
+        env:
+          MANIFEST_PATH: .github/release-versions.json
+        with:
+          retries: 3
+          retry-exempt-status-codes: 400,401,404
+          script: |
+            const fs = require("fs");
+
+            const { owner, repo } = context.repo;
+            const manifestPath = process.env.MANIFEST_PATH;
+            const sourceSha = context.sha;
+            const tagPattern = /^v\d+\.\d+\.\d+$/;
+            const shaPattern = /^[0-9a-f]{40}$/;
+
+            const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+            if (!Array.isArray(manifest) || manifest.length === 0) {
+              core.setFailed("Release manifest must be a non-empty array.");
+              return;
+            }
+
+            const active = manifest.filter((entry) => entry.backfill !== false);
+            const seenTags = new Set();
+            const plans = [];
+
+            function fail(message) {
+              throw new Error(message);
+            }
+
+            function status(error) {
+              return error?.status ?? error?.response?.status;
+            }
+
+            function releaseBody(note, notePath) {
+              const normalized = note.replace(/\r\n/g, "\n");
+              const start = normalized.indexOf("## What's Changed");
+              const end = normalized.indexOf("## Release Details", start);
+
+              if (start < 0 || end < 0 || end <= start) {
+                fail(
+                  `${notePath} must contain "## What's Changed" before ` +
+                    '"## Release Details".'
+                );
+              }
+
+              const summary = normalized.slice(start, end).trim();
+              const noteUrl =
+                `https://github.com/${owner}/${repo}/blob/${sourceSha}/${notePath}`;
+              return `${summary}\n\n---\n\n[Full Release Note](${noteUrl})\n`;
+            }
+
+            async function existingRelease(tag) {
+              try {
+                const response = await github.rest.repos.getReleaseByTag({
+                  owner,
+                  repo,
+                  tag
+                });
+                return response.data;
+              } catch (error) {
+                if (status(error) === 404) return null;
+                throw error;
+              }
+            }
+
+            async function resolveTag(tag) {
+              let object;
+              try {
+                const response = await github.rest.git.getRef({
+                  owner,
+                  repo,
+                  ref: `tags/${tag}`
+                });
+                object = response.data.object;
+              } catch (error) {
+                if (status(error) === 404) return null;
+                throw error;
+              }
+
+              let annotated = false;
+              const visited = new Set();
+              while (object.type === "tag") {
+                annotated = true;
+                if (visited.has(object.sha)) {
+                  fail(`Tag ${tag} contains a tag-object cycle.`);
+                }
+                visited.add(object.sha);
+
+                const response = await github.rest.git.getTag({
+                  owner,
+                  repo,
+                  tag_sha: object.sha
+                });
+                object = response.data.object;
+              }
+
+              if (object.type !== "commit") {
+                fail(`Tag ${tag} resolves to ${object.type}, not a commit.`);
+              }
+
+              return { annotated, commit: object.sha.toLowerCase() };
+            }
+
+            // Phase 1: validate every entry before writing anything.
+            for (const entry of active) {
+              const { tag, commit, note, tagMessage, makeLatest } = entry;
+
+              if (!tagPattern.test(tag)) fail(`Invalid release tag: ${tag}`);
+              if (seenTags.has(tag)) fail(`Duplicate release tag: ${tag}`);
+              seenTags.add(tag);
+
+              if (!shaPattern.test(commit)) {
+                fail(`${tag} must use a full lowercase 40-character commit SHA.`);
+              }
+              if (note !== `docs/${tag}/RELEASE-NOTE.md`) {
+                fail(`${tag} has an unexpected release-note path: ${note}`);
+              }
+              if (typeof tagMessage !== "string" || tagMessage.trim() === "") {
+                fail(`${tag} must provide a tag message.`);
+              }
+              if (typeof makeLatest !== "boolean") {
+                fail(`${tag} must provide a boolean makeLatest value.`);
+              }
+              if (!fs.existsSync(note)) fail(`Missing release note: ${note}`);
+
+              const noteText = fs.readFileSync(note, "utf8");
+              const body = releaseBody(noteText, note);
+
+              const commitResponse = await github.rest.repos.getCommit({
+                owner,
+                repo,
+                ref: commit
+              });
+              if (commitResponse.data.sha.toLowerCase() !== commit) {
+                fail(`${tag} did not resolve to the expected commit ${commit}.`);
+              }
+
+              const comparison = await github.rest.repos.compareCommitsWithBasehead({
+                owner,
+                repo,
+                basehead: `${commit}...${sourceSha}`
+              });
+              if (!["ahead", "identical"].includes(comparison.data.status)) {
+                fail(`${tag} commit ${commit} is not an ancestor of ${sourceSha}.`);
+              }
+
+              const currentTag = await resolveTag(tag);
+              if (currentTag && !currentTag.annotated) {
+                fail(`Existing tag ${tag} is lightweight; refusing to replace it.`);
+              }
+              if (currentTag && currentTag.commit !== commit) {
+                fail(
+                  `Existing tag ${tag} points to ${currentTag.commit}, ` +
+                    `expected ${commit}; refusing to replace it.`
+                );
+              }
+
+              plans.push({
+                ...entry,
+                body,
+                tagExists: currentTag !== null,
+                releaseExists: (await existingRelease(tag)) !== null
+              });
+            }
+
+            // Phase 2: all entries are valid, so missing objects may be created.
+            for (const plan of plans) {
+              if (!plan.tagExists) {
+                const tagObject = await github.rest.git.createTag({
+                  owner,
+                  repo,
+                  tag: plan.tag,
+                  message: plan.tagMessage,
+                  object: plan.commit,
+                  type: "commit"
+                });
+
+                try {
+                  await github.rest.git.createRef({
+                    owner,
+                    repo,
+                    ref: `refs/tags/${plan.tag}`,
+                    sha: tagObject.data.sha
+                  });
+                  core.notice(`Created annotated tag ${plan.tag}.`);
+                } catch (error) {
+                  if (status(error) !== 422) throw error;
+                  const racedTag = await resolveTag(plan.tag);
+                  if (
+                    !racedTag ||
+                    !racedTag.annotated ||
+                    racedTag.commit !== plan.commit
+                  ) {
+                    throw error;
+                  }
+                  core.notice(`Tag ${plan.tag} was created concurrently.`);
+                }
+              } else {
+                core.notice(`Tag ${plan.tag} already exists and is valid.`);
+              }
+
+              if (!plan.releaseExists) {
+                try {
+                  await github.rest.repos.createRelease({
+                    owner,
+                    repo,
+                    tag_name: plan.tag,
+                    name: plan.tag,
+                    body: plan.body,
+                    draft: false,
+                    prerelease: false,
+                    generate_release_notes: false,
+                    make_latest: plan.makeLatest ? "true" : "false"
+                  });
+                  core.notice(`Created release ${plan.tag}.`);
+                } catch (error) {
+                  if (status(error) !== 422 || !(await existingRelease(plan.tag))) {
+                    throw error;
+                  }
+                  core.notice(`Release ${plan.tag} was created concurrently.`);
+                }
+              } else {
+                core.notice(`Release ${plan.tag} already exists; leaving it unchanged.`);
+              }
+            }
+
+            const skipped = manifest
+              .filter((entry) => entry.backfill === false)
+              .map((entry) => entry.tag);
+            await core.summary
+              .addHeading("Historical release backfill")
+              .addTable([
+                [
+                  { data: "Tag", header: true },
+                  { data: "Tag action", header: true },
+                  { data: "Release action", header: true }
+                ],
+                ...plans.map((plan) => [
+                  plan.tag,
+                  plan.tagExists ? "kept" : "created",
+                  plan.releaseExists ? "kept" : "created"
+                ])
+              ])
+              .addRaw(
+                skipped.length > 0
+                  ? `\nSkipped by manifest: ${skipped.join(", ")}\n`
+                  : "\n"
+              )
+              .write();
