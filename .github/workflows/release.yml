@@ -1,0 +1,70 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing v* tag to release"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Validate tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "${TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid release tag: ${TAG}" >&2
+            exit 1
+          fi
+          git fetch --force origin "refs/tags/${TAG}:refs/tags/${TAG}"
+          git rev-parse --verify "refs/tags/${TAG}"
+
+      - name: Create release
+        shell: bash
+        run: |
+          set -euo pipefail
+          RELEASE_NOTE="docs/${TAG}/RELEASE-NOTE.md"
+
+          RELEASE_NOTE_REF="${TAG}"
+          if git cat-file -e "${TAG}:${RELEASE_NOTE}" 2>/dev/null; then
+            git show "${TAG}:${RELEASE_NOTE}" > /tmp/full-release-note.md
+          else
+            RELEASE_NOTE_REF="main"
+            cp "${RELEASE_NOTE}" /tmp/full-release-note.md
+          fi
+
+          awk '
+            /^## What.s Changed$/ { found = 1 }
+            found && printed && /^## Release Details$/ { exit }
+            found { print; printed = 1 }
+            END { if (!found) exit 1 }
+          ' /tmp/full-release-note.md > /tmp/release-body.md
+
+          {
+            printf '\n\n---\n\n'
+            printf '[Full Release Note](https://github.com/%s/blob/%s/%s)\n' \
+              "${GITHUB_REPOSITORY}" "${RELEASE_NOTE_REF}" "${RELEASE_NOTE}"
+          } >> /tmp/release-body.md
+
+          gh release create "${TAG}" \
+            --title "${TAG}" \
+            --notes-file /tmp/release-body.md \
+            --verify-tag
