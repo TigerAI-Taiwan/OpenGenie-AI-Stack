@@ -10,9 +10,17 @@ on:
         description: "Existing v* tag to release"
         required: true
         type: string
+      tag_sha:
+        description: "Expected tag ref SHA from the pre-push hook"
+        required: false
+        type: string
 
 permissions:
   contents: write
+
+concurrency:
+  group: release-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+  cancel-in-progress: false
 
 jobs:
   release:
@@ -21,6 +29,8 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+      EXPECTED_TAG_SHA: ${{ inputs.tag_sha }}
+      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -34,6 +44,24 @@ jobs:
             echo "Invalid release tag: ${TAG}" >&2
             exit 1
           fi
+
+          for attempt in {1..12}; do
+            remote_tag_sha="$(
+              git ls-remote --tags origin "refs/tags/${TAG}" \
+                | awk 'NR == 1 { print $1 }'
+            )"
+            if [ -n "${remote_tag_sha}" ] && \
+               { [ -z "${EXPECTED_TAG_SHA}" ] || \
+                 [ "${remote_tag_sha}" = "${EXPECTED_TAG_SHA}" ]; }; then
+              break
+            fi
+            if [ "${attempt}" -eq 12 ]; then
+              echo "Tag was not found on origin: ${TAG}" >&2
+              exit 1
+            fi
+            sleep 5
+          done
+
           git fetch --force origin "refs/tags/${TAG}:refs/tags/${TAG}"
           git rev-parse --verify "refs/tags/${TAG}"
 
@@ -43,12 +71,20 @@ jobs:
           set -euo pipefail
           RELEASE_NOTE="docs/${TAG}/RELEASE-NOTE.md"
 
+          if gh release view "${TAG}" >/dev/null 2>&1; then
+            echo "Release already exists: ${TAG}"
+            exit 0
+          fi
+
           RELEASE_NOTE_REF="${TAG}"
           if git cat-file -e "${TAG}:${RELEASE_NOTE}" 2>/dev/null; then
             git show "${TAG}:${RELEASE_NOTE}" > /tmp/full-release-note.md
           else
-            RELEASE_NOTE_REF="main"
-            cp "${RELEASE_NOTE}" /tmp/full-release-note.md
+            RELEASE_NOTE_REF="${DEFAULT_BRANCH}"
+            git fetch origin \
+              "refs/heads/${DEFAULT_BRANCH}:refs/remotes/origin/${DEFAULT_BRANCH}"
+            git show "origin/${DEFAULT_BRANCH}:${RELEASE_NOTE}" \
+              > /tmp/full-release-note.md
           fi
 
           awk '

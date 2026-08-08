@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+remote_name="${1:-}"
+remote_url="${2:-}"
+
+case "${remote_url}" in
+  https://github.com/*)
+    repository="${remote_url#https://github.com/}"
+    ;;
+  git@github.com:*)
+    repository="${remote_url#git@github.com:}"
+    ;;
+  ssh://git@github.com/*)
+    repository="${remote_url#ssh://git@github.com/}"
+    ;;
+  *)
+    repository=""
+    ;;
+esac
+repository="${repository%.git}"
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  case "${remote_ref}" in
+    refs/tags/v*) ;;
+    *) continue ;;
+  esac
+
+  if [[ "${local_sha}" =~ ^0+$ ]]; then
+    continue
+  fi
+
+  tag="${remote_ref#refs/tags/}"
+  if [[ ! "${tag}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.-]+)?$ ]]; then
+    echo "Invalid release tag: ${tag}" >&2
+    exit 1
+  fi
+
+  if [ -z "${repository}" ]; then
+    echo "Cannot dispatch Release workflow for non-GitHub remote: ${remote_name}" >&2
+    exit 1
+  fi
+
+  if ! command -v gh >/dev/null 2>&1; then
+    echo "GitHub CLI (gh) is required to push release tags." >&2
+    exit 1
+  fi
+
+  echo "Dispatching Release workflow for ${tag} in ${repository}"
+  gh workflow run release.yml \
+    --repo "${repository}" \
+    --ref main \
+    --field "tag=${tag}" \
+    --field "tag_sha=${local_sha}"
+done
