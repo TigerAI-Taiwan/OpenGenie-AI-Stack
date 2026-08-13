@@ -16,7 +16,7 @@
 ## 核心特點
 
 - **多 GPU 支援** — AMD ROCm、NVIDIA CUDA、ARM64（Apple Silicon、Jetson、Ampere）
-- **12 層級方法論** — 從驅動安裝到監控的結構化模組，每個 Phase 可獨立部署
+- **11 層級方法論** — 從驅動安裝到監控的結構化模組，每個 Phase 可獨立部署
 - **LLM 推論** — Ollama + OpenWebUI，顯存常駐優化 + Lemonade 原生推論引擎
 - **RAG 知識庫** — Qdrant 向量資料庫 + Docling 文件解析 + Mosquitto MQTT
 - **工作流自動化** — n8n Queue Mode，含 Redis 與分散式 Worker
@@ -89,7 +89,7 @@ sudo bash master-deploy.sh test
 
 ---
 
-## 12 層級架構
+## 11 層級架構
 
 | Phase | 層級 | 核心元件 |
 |:-----:|------|----------|

@@ -1,0 +1,74 @@
+services:
+  postgres:
+    image: ${POSTGRES_IMAGE:-postgres:17-alpine}
+    container_name: postgres
+    restart: always
+    shm_size: 1gb
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PG_USER:-adm} -d ${PG_DB_NAME:-tigerai}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    # ports:
+    #   - "${PG_PORT:-5432}:5432" # Disabled for security. Use pgAdmin inside the stack to manage DB.
+    networks:
+      - ai_stack_net
+    environment:
+      - POSTGRES_DB=${PG_DB_NAME:-tigerai}
+      - POSTGRES_USER=${PG_USER:-adm}
+      - POSTGRES_PASSWORD=${PG_PASS:-CHANGE_ME}
+      - POSTGRES_INITDB_ARGS=--encoding=UTF8 --locale-provider=icu --icu-locale=${PG_LANG:-zh-TW}
+      - TZ=${TIMEZONE:-Asia/Taipei}
+      - PGTZ=${TIMEZONE:-Asia/Taipei}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+  pgadmin:
+    image: ${PGADMIN_IMAGE:-dpage/pgadmin4:latest}
+    container_name: pgadmin
+    restart: always
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:80/misc/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    ports:
+      - "${PGADMIN_PORT:-8000}:80"
+    networks:
+      - ai_stack_net
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=${PGADMIN_EMAIL:-CHANGE_ME}
+      - PGADMIN_DEFAULT_PASSWORD=${PGADMIN_PASS:-CHANGE_ME}
+      - PGADMIN_CONFIG_SERVER_MODE=True
+      # amd / arm64 wrote ${TZ} here while nvidia wrote ${TIMEZONE}, and the
+      # postgres service above used ${TIMEZONE} on all three. Unified on
+      # ${TIMEZONE} for consistency within the file; .env.example defines
+      # TIMEZONE and TZ with the same value on every platform, so the
+      # resolved output is unchanged (see the golden config comparison).
+      - TZ=${TIMEZONE:-Asia/Taipei}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+networks:
+  ai_stack_net:
+    external: true
+
+volumes:
+  pgdata:
+  pgadmin_data:

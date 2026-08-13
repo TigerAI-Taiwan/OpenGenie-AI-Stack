@@ -1,0 +1,38 @@
+# =====================================================================
+# TigerAI RAG Stack — arm64 overlay
+# Path: deployments/compose-stack/05-rag-stack-docling-qdrant-mosquitto/docker-compose.arm64.yaml
+#
+# Differences from base:
+#   1. GPU access for docling and qdrant: deploy.resources.reservations
+#      (driver: nvidia) — Jetson and Grace-Hopper class hardware.
+#   2. docling: TZ, which only the arm64 stack set.
+#   3. SHM_SIZE_RAG compatibility — the arm64 stack used that name where the
+#      others used DOCLING_SHM.
+#
+# qdrant keeps base's plain `qdrant/qdrant:latest`: no official aarch64 GPU
+# image is published, so QDRANT__GPU__INDEXING is ignored and indexing runs on
+# CPU. The reservation below is still declared because the pre-merge arm64
+# stack declared it, and it is harmless when no GPU is present.
+# =====================================================================
+services:
+  docling:
+    # Keeps an existing arm64 .env that sets SHM_SIZE_RAG working.
+    shm_size: ${SHM_SIZE_RAG:-${DOCLING_SHM:-16gb}}
+    environment:
+      - TZ=${TZ:-Asia/Taipei}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  qdrant:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

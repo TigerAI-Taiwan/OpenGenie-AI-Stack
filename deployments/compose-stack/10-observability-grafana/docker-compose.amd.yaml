@@ -1,0 +1,56 @@
+# =====================================================================
+# TigerAI Observability — amd overlay
+# Path: deployments/compose-stack/10-observability-grafana/docker-compose.amd.yaml
+#
+# Differences from base:
+#   1. gpu-exporter: the whole service. AMD uses ROCm's device-metrics-exporter
+#      on port 5000; NVIDIA uses DCGM on 9400. Different image, healthcheck,
+#      GPU access and privilege model — nothing worth sharing.
+#   2. prometheus and grafana provisioning mounts point at resource/amd/.
+#
+# NOTE: node-exporter is NOT overridden here any more. It used to mount
+# /var/lib/node_exporter/textfile_collector and add
+# --collector.textfile.directory, fed by a host-side rocm-smi-collector.sh
+# cron job. That path was removed: it shelled out to rocm-smi on the HOST,
+# which is not installed on AMD hosts (ROCm runs inside containers via
+# /dev/kfd + /dev/dri), so every reading was empty and the collector published
+# a well-formed metric set of all zeros once a minute, forever. GPU metrics
+# come from the official exporter below, scraped by the 'gpu-metrics' job.
+# =====================================================================
+services:
+  prometheus:
+    volumes:
+      # Called prometheus-amd.yml before the merge; renamed for consistency.
+      - ./resource/amd/prometheus.yml:/etc/prometheus/prometheus.yml
+
+  grafana:
+    volumes:
+      - ./resource/amd/grafana/provisioning:/etc/grafana/provisioning
+
+  gpu-exporter:
+    image: ${ROCM_EXPORTER_IMAGE:-rocm/device-metrics-exporter:v1.4.2}
+    container_name: gpu-exporter
+    restart: always
+    privileged: true
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:5000/metrics"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    devices:
+      - /dev/kfd:/dev/kfd
+      - /dev/dri:/dev/dri
+    volumes:
+      - /sys:/sys:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - ai_stack_net
+    # YAML anchors do not cross compose files, so this service — which base
+    # does not define — carries its own logging block.
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"

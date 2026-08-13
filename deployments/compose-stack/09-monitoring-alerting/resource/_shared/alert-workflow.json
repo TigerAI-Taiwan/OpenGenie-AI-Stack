@@ -1,0 +1,68 @@
+{
+    "name": "TigerAI_Global_Alert_System",
+    "nodes": [
+        {
+            "parameters": {
+                "topic": "tigerai/monitor/alarm"
+            },
+            "id": "mqtt_trigger",
+            "name": "MQTT_Alarm_Trigger",
+            "type": "n8n-nodes-base.mqttTrigger",
+            "typeVersion": 1,
+            "position": [
+                250,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "content": "## 🚨 TigerAI Service Alert\n\n**Warning:** Some services are currently unreachable.\n\n**Details:**\n{{ $json.message }}"
+            },
+            "id": "format_msg",
+            "name": "Format_Alert",
+            "type": "n8n-nodes-base.set",
+            "typeVersion": 3.2,
+            "position": [
+                470,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "notice": "This is a placeholder for your favorite messenger node (LINE, Discord, Slack, etc.)"
+            },
+            "id": "placeholder_messenger",
+            "name": "Alert_Notification_Node",
+            "type": "n8n-nodes-base.noOp",
+            "typeVersion": 1,
+            "position": [
+                690,
+                300
+            ]
+        }
+    ],
+    "connections": {
+        "MQTT_Alarm_Trigger": {
+            "main": [
+                [
+                    {
+                        "node": "Format_Alert",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Format_Alert": {
+            "main": [
+                [
+                    {
+                        "node": "Alert_Notification_Node",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    }
+}

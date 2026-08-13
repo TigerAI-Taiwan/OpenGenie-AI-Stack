@@ -13,7 +13,7 @@
 
 ## 1. Overview
 
-OpenGenie AI Stack is a modular, self-hosted AI infrastructure framework for AMD, NVIDIA, and ARM64 hardware. It transforms a standard GPU server into a production-ready AI appliance through a structured 12-phase deployment methodology.
+OpenGenie AI Stack is a modular, self-hosted AI infrastructure framework for AMD, NVIDIA, and ARM64 hardware. It transforms a standard GPU server into a production-ready AI appliance through a structured 11-phase deployment methodology.
 
 Each phase is independently deployable and contains its own `deploy.sh` and `docker-compose.yaml`. Stacks are located under `deployments/`:
 
@@ -26,7 +26,7 @@ deployments/
 
 ---
 
-## 2. 12-Phase Architecture
+## 2. 11-Phase Architecture
 
 | Phase | Layer | Name | Core Components |
 |:------|:------|:-----|:----------------|

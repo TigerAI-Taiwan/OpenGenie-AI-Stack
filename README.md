@@ -16,7 +16,7 @@ A modular, self-hosted AI infrastructure framework for AMD, NVIDIA, and ARM64 ha
 ## Features
 
 - **Multi-GPU Support** — AMD ROCm, NVIDIA CUDA, ARM64 (Apple Silicon, Jetson, Ampere)
-- **12-Phase Methodology** — structured, independently deployable modules from driver setup to monitoring
+- **11-Phase Methodology** — structured, independently deployable modules from driver setup to monitoring
 - **LLM Inference** — Ollama + OpenWebUI with always-ready VRAM optimization and Lemonade native engine
 - **RAG Pipeline** — Qdrant vector DB + Docling document processor + Mosquitto MQTT
 - **Workflow Automation** — n8n in queue mode with Redis and distributed workers
@@ -89,7 +89,7 @@ sudo bash master-deploy.sh test
 
 ---
 
-## 12-Phase Architecture
+## 11-Phase Architecture
 
 | Phase | Layer | Components |
 |:-----:|-------|------------|

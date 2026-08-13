@@ -1,0 +1,50 @@
+{
+    "title": "Docker Containers Overview",
+    "tags": [
+        "docker",
+        "containers"
+    ],
+    "timezone": "browser",
+    "panels": [
+        {
+            "id": 1,
+            "title": "Container CPU Usage",
+            "type": "graph",
+            "gridPos": {
+                "h": 8,
+                "w": 12,
+                "x": 0,
+                "y": 0
+            },
+            "targets": [
+                {
+                    "expr": "rate(container_cpu_usage_seconds_total{name=~\".+\"}[5m])",
+                    "legendFormat": "{{name}}",
+                    "refId": "A"
+                }
+            ],
+            "datasource": "Prometheus"
+        },
+        {
+            "id": 2,
+            "title": "Container Memory Usage",
+            "type": "graph",
+            "gridPos": {
+                "h": 8,
+                "w": 12,
+                "x": 12,
+                "y": 0
+            },
+            "targets": [
+                {
+                    "expr": "container_memory_usage_bytes{name=~\".+\"}",
+                    "legendFormat": "{{name}}",
+                    "refId": "A"
+                }
+            ],
+            "datasource": "Prometheus"
+        }
+    ],
+    "schemaVersion": 16,
+    "version": 0
+}

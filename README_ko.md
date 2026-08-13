@@ -16,7 +16,7 @@ AMD, NVIDIA, ARM64 하드웨어를 지원하는 모듈형 셀프호스팅 AI 인
 ## 주요 특징
 
 - **멀티 GPU 지원** — AMD ROCm, NVIDIA CUDA, ARM64 (Apple Silicon, Jetson, Ampere)
-- **12단계 방법론** — 드라이버 설치부터 모니터링까지, 각 단계를 독립적으로 배포 가능
+- **11단계 방법론** — 드라이버 설치부터 모니터링까지, 각 단계를 독립적으로 배포 가능
 - **LLM 추론** — Ollama + OpenWebUI (항상 준비된 VRAM 최적화) + Lemonade 네이티브 추론 엔진
 - **RAG 파이프라인** — Qdrant 벡터 DB + Docling 문서 처리 + Mosquitto MQTT
 - **워크플로우 자동화** — n8n 큐 모드 (Redis + 분산 워커)
@@ -89,7 +89,7 @@ sudo bash master-deploy.sh test
 
 ---
 
-## 12단계 아키텍처
+## 11단계 아키텍처
 
 | 단계 | 레이어 | 핵심 컴포넌트 |
 |:---:|-------|------------|

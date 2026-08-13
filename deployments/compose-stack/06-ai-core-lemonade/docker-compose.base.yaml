@@ -1,0 +1,168 @@
+# =====================================================================
+# TigerAI Lemonade AI Core — containerized (AMD Vulkan)
+# Path: deployments/compose-stack/06-ai-core-lemonade/docker-compose.base.yaml
+#
+# WARNING: this file is used by the amd platform ONLY.
+#
+# Lemonade is deployed in two completely different shapes in this repository:
+#   amd            — the three containers below (Vulkan via /dev/kfd + /dev/dri)
+#   nvidia, arm64  — native systemd units written by deploy.sh, no containers
+#
+# There is no overlay for this module because there is nothing to overlay:
+# the platforms do not share a service definition. deploy.sh branches on
+# TIGER_PLATFORM and only reaches tiger_compose on amd. Running
+# `tiger_compose` here under nvidia or arm64 would start containers that
+# duplicate the systemd services and fight them for the GPU.
+#
+# GPU access: /dev/kfd + /dev/dri device mounts (no ROCm runtime needed).
+#
+# tiger-mode: EDU is the default; RAG and EMBED are mutually exclusive.
+#   Switch to RAG:   deploy.sh rag
+#   Switch to EDU:   deploy.sh edu
+#
+# NOTE: the YAML anchor below is fine because it is used within this single
+# file. Anchors do not cross compose files — if this module ever gains an
+# overlay, any service that overlay adds must carry its own logging block.
+# =====================================================================
+
+x-lemonade-base: &lemonade-base
+  image: ghcr.io/lemonade-sdk/lemonade-server:latest
+  restart: always
+  networks:
+    - ai_stack_net
+  devices:
+    - /dev/kfd:/dev/kfd
+    - /dev/dri:/dev/dri
+  group_add:
+    - "${TIGER_VIDEO_GID:-44}"
+    - "${TIGER_RENDER_GID:-992}"
+  logging:
+    driver: json-file
+    options:
+      max-size: "50m"
+      max-file: "3"
+
+services:
+  lemonade-edu:
+    <<: *lemonade-base
+    container_name: lemonade-edu
+    ports:
+      - "8800:8800"
+    environment:
+      LEMONADE_API_KEY: ${LEMONADE_API_KEY}
+      GGML_VULKAN_DEVICE: ${GGML_VULKAN_DEVICE_EDU:-0}
+      CACHE_DIR: /var/cache/lemonade
+      TIGER_CPU_THREADS: ${TIGER_CPU_THREADS:-16}
+    volumes:
+      - ${MODELS_DIR:-/home/wrt/TigerAI/models}:/models:ro
+      - lemonade-edu-cache:/var/cache/lemonade
+    command:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        mkdir -p "$$CACHE_DIR"
+        THREADS=$${TIGER_CPU_THREADS:-16}
+        cat > "$$CACHE_DIR/config.json" << EOF
+        {
+          "config_version": 1,
+          "ctx_size": 81920,
+          "extra_models_dir": "/models",
+          "llamacpp": {
+            "args": "--threads $$THREADS --parallel 4 --cache-type-k q8_0 --cache-type-v q8_0",
+            "backend": "vulkan"
+          }
+        }
+        EOF
+        exec /opt/lemonade/lemond "$$CACHE_DIR" --port 8800 --host 0.0.0.0
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8800/live"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+  lemonade-rag:
+    <<: *lemonade-base
+    container_name: lemonade-rag
+    ports:
+      - "8801:8801"
+    environment:
+      LEMONADE_API_KEY: ${LEMONADE_API_KEY}
+      GGML_VULKAN_DEVICE: ${GGML_VULKAN_DEVICE_RAG:-0}
+      CACHE_DIR: /var/cache/lemonade
+      TIGER_CPU_THREADS: ${TIGER_CPU_THREADS:-16}
+    volumes:
+      - ${MODELS_DIR:-/home/wrt/TigerAI/models}:/models:ro
+      - lemonade-rag-cache:/var/cache/lemonade
+    command:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        mkdir -p "$$CACHE_DIR"
+        THREADS=$${TIGER_CPU_THREADS:-16}
+        cat > "$$CACHE_DIR/config.json" << EOF
+        {
+          "config_version": 1,
+          "ctx_size": 131072,
+          "extra_models_dir": "/models",
+          "llamacpp": {
+            "args": "--threads $$THREADS --parallel 2 --cache-type-k q8_0 --cache-type-v q8_0",
+            "backend": "vulkan"
+          }
+        }
+        EOF
+        exec /opt/lemonade/lemond "$$CACHE_DIR" --port 8801 --host 0.0.0.0
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8801/live"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+  lemonade-embed:
+    <<: *lemonade-base
+    container_name: lemonade-embed
+    ports:
+      - "8802:8802"
+    environment:
+      LEMONADE_API_KEY: ${LEMONADE_API_KEY}
+      GGML_VULKAN_DEVICE: ${GGML_VULKAN_DEVICE_EMBED:-0}
+      CACHE_DIR: /var/cache/lemonade
+    volumes:
+      - ${MODELS_DIR:-/home/wrt/TigerAI/models}:/models:ro
+      - lemonade-embed-cache:/var/cache/lemonade
+    command:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        mkdir -p "$$CACHE_DIR"
+        cat > "$$CACHE_DIR/config.json" << EOF
+        {
+          "config_version": 1,
+          "ctx_size": 8192,
+          "extra_models_dir": "/models",
+          "llamacpp": {
+            "args": "--threads 8 --embedding",
+            "backend": "vulkan"
+          }
+        }
+        EOF
+        exec /opt/lemonade/lemond "$$CACHE_DIR" --port 8802 --host 0.0.0.0
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8802/live"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+volumes:
+  lemonade-edu-cache:
+  lemonade-rag-cache:
+  lemonade-embed-cache:
+
+networks:
+  ai_stack_net:
+    external: true

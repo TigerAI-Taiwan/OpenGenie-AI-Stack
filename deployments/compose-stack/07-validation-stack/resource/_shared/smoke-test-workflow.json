@@ -1,0 +1,122 @@
+{
+    "name": "TigerAI_Stack_Smoke_Test",
+    "nodes": [
+        {
+            "parameters": {},
+            "id": "trigger",
+            "name": "When Clicking \"Execute Workflow\"",
+            "type": "n8n-nodes-base.manualTrigger",
+            "typeVersion": 1,
+            "position": [
+                240,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "operation": "executeQuery",
+                "query": "SELECT 1 as connection_test;"
+            },
+            "id": "postgres_test",
+            "name": "Postgres_Test",
+            "type": "n8n-nodes-base.postgres",
+            "typeVersion": 2.1,
+            "position": [
+                460,
+                300
+            ],
+            "credentials": {
+                "postgres": {
+                    "id": "auto_id",
+                    "name": "Postgres_Internal"
+                }
+            }
+        },
+        {
+            "id": "ollama_test",
+            "name": "Ollama_Test",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.1,
+            "position": [
+                680,
+                300
+            ],
+            "parameters": {
+                "method": "POST",
+                "url": "http://ollama:11434/api/generate",
+                "sendBody": true,
+                "bodyParameters": {
+                    "parameters": [
+                        {
+                            "name": "model",
+                            "value": "llama3:latest"
+                        },
+                        {
+                            "name": "prompt",
+                            "value": "Integration Success - Smoke Test"
+                        },
+                        {
+                            "name": "stream",
+                            "value": false
+                        }
+                    ]
+                }
+            }
+        },
+        {
+            "parameters": {
+                "topic": "tigerai/status",
+                "message": "Stack validation completed successfully."
+            },
+            "id": "mqtt_test",
+            "name": "MQTT_Test",
+            "type": "n8n-nodes-base.mqtt",
+            "typeVersion": 1,
+            "position": [
+                900,
+                300
+            ],
+            "credentials": {
+                "mqtt": {
+                    "id": "auto_id",
+                    "name": "Mosquitto_Internal"
+                }
+            }
+        }
+    ],
+    "connections": {
+        "When Clicking \"Execute Workflow\"": {
+            "main": [
+                [
+                    {
+                        "node": "Postgres_Test",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Postgres_Test": {
+            "main": [
+                [
+                    {
+                        "node": "Ollama_Test",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Ollama_Test": {
+            "main": [
+                [
+                    {
+                        "node": "MQTT_Test",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    }
+}

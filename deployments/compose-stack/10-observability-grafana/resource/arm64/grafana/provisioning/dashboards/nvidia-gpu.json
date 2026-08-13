@@ -1,0 +1,112 @@
+{
+    "title": "NVIDIA GPU Monitoring",
+    "tags": [
+        "gpu",
+        "nvidia"
+    ],
+    "timezone": "browser",
+    "panels": [
+        {
+            "id": 1,
+            "title": "GPU Utilization",
+            "type": "graph",
+            "gridPos": {
+                "h": 8,
+                "w": 12,
+                "x": 0,
+                "y": 0
+            },
+            "targets": [
+                {
+                    "expr": "DCGM_FI_DEV_GPU_UTIL",
+                    "legendFormat": "GPU {{gpu}}",
+                    "refId": "A"
+                }
+            ],
+            "datasource": "Prometheus",
+            "yaxes": [
+                {
+                    "format": "percent",
+                    "max": 100,
+                    "min": 0
+                }
+            ]
+        },
+        {
+            "id": 2,
+            "title": "GPU Memory Usage",
+            "type": "graph",
+            "gridPos": {
+                "h": 8,
+                "w": 12,
+                "x": 12,
+                "y": 0
+            },
+            "targets": [
+                {
+                    "expr": "DCGM_FI_DEV_FB_USED / DCGM_FI_DEV_FB_FREE * 100",
+                    "legendFormat": "GPU {{gpu}}",
+                    "refId": "A"
+                }
+            ],
+            "datasource": "Prometheus",
+            "yaxes": [
+                {
+                    "format": "percent",
+                    "max": 100,
+                    "min": 0
+                }
+            ]
+        },
+        {
+            "id": 3,
+            "title": "GPU Temperature",
+            "type": "graph",
+            "gridPos": {
+                "h": 8,
+                "w": 12,
+                "x": 0,
+                "y": 8
+            },
+            "targets": [
+                {
+                    "expr": "DCGM_FI_DEV_GPU_TEMP",
+                    "legendFormat": "GPU {{gpu}}",
+                    "refId": "A"
+                }
+            ],
+            "datasource": "Prometheus",
+            "yaxes": [
+                {
+                    "format": "celsius"
+                }
+            ]
+        },
+        {
+            "id": 4,
+            "title": "GPU Power Usage",
+            "type": "graph",
+            "gridPos": {
+                "h": 8,
+                "w": 12,
+                "x": 12,
+                "y": 8
+            },
+            "targets": [
+                {
+                    "expr": "DCGM_FI_DEV_POWER_USAGE",
+                    "legendFormat": "GPU {{gpu}}",
+                    "refId": "A"
+                }
+            ],
+            "datasource": "Prometheus",
+            "yaxes": [
+                {
+                    "format": "watt"
+                }
+            ]
+        }
+    ],
+    "schemaVersion": 16,
+    "version": 0
+}
