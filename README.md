@@ -42,49 +42,49 @@ git clone https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack.git
 cd OpenGenie-AI-Stack
 ```
 
-### 2. Choose your stack
-
-| Hardware | Directory |
-|----------|-----------|
-| NVIDIA GPU | `deployments/nvidia-compose-stack/` |
-| AMD ROCm GPU | `deployments/amd-compose-stack/` |
-| ARM64 (Apple Silicon / Jetson / Ampere) | `deployments/arm64-compose-stack/` |
+### 2. Configure
 
 ```bash
-cd deployments/amd-compose-stack   # or nvidia / arm64
-```
+cd deployments/compose-stack
 
-### 3. Configure
+# Copy the example matching your hardware
+cp .env.nvidia.example .env      # or .env.amd.example / .env.arm64.example
 
-```bash
-cp .env.example .env
 # Edit .env — replace all CHANGE_ME values with your own credentials
 nano .env
 ```
 
-### 4. Hardware calibration (recommended)
+The three examples are kept separate on purpose: the platforms define
+different keys, and some keys must be absent rather than empty.
+
+### 3. Hardware calibration (recommended)
 
 ```bash
-sudo bash master-deploy.sh init
+sudo -E bash deployments/tiger-deploy.sh
 ```
 
-This auto-detects your CPU/GPU and writes a tuning profile to `tiger-tuning.env`.
+This detects your hardware, exports `TIGER_PLATFORM`, and writes a tuning
+profile to `tiger-tuning.env`.
 
-### 5. Deploy
+### 4. Deploy
 
 ```bash
 # Full deployment (all phases)
-sudo bash master-deploy.sh all
+sudo -E bash deployments/compose-stack/master-deploy.sh all
 
-# Or deploy individual phases
-sudo bash 02-database-postgres-pgadmin/deploy.sh
-sudo bash 03-ai-interface-ollama-openwebui-redis/deploy.sh
+# Or deploy an individual phase — set the platform yourself
+TIGER_PLATFORM=nvidia sudo -E bash \
+  deployments/compose-stack/02-database-postgres-pgadmin/deploy.sh all
 ```
 
-### 6. Verify
+`master-deploy.sh` refuses to guess the platform. If `TIGER_PLATFORM` is
+unset it stops with an error rather than picking one, because guessing wrong
+pulls the wrong GPU image.
+
+### 5. Verify
 
 ```bash
-sudo bash master-deploy.sh test
+sudo -E bash deployments/compose-stack/master-deploy.sh test
 ```
 
 ---
@@ -127,10 +127,13 @@ sudo bash master-deploy.sh test
 
 ```
 deployments/
-├── amd-compose-stack/          # AMD ROCm stack
-├── nvidia-compose-stack/       # NVIDIA CUDA stack
-└── arm64-compose-stack/        # ARM64 stack
+├── tiger-deploy.sh             # detects hardware, exports TIGER_PLATFORM
+└── compose-stack/
+    ├── lib/common.sh           # shared shell library
+    ├── master-deploy.sh
+    ├── .env.{amd,nvidia,arm64}.example
     ├── 00-pre-flight-advisor/
+    ├── 00-system-setup-gpu-driver-and-docker/
     ├── 01-infra-webssh-portainer/
     ├── 02-database-postgres-pgadmin/
     ├── 03-ai-interface-ollama-openwebui-redis/
@@ -141,8 +144,7 @@ deployments/
     ├── 08-backup-recovery/
     ├── 09-monitoring-alerting/
     ├── 10-observability-grafana/
-    ├── master-deploy.sh
-    └── .env.example
+    └── migrations/
 ```
 
 ---

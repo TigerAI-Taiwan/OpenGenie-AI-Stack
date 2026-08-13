@@ -42,50 +42,43 @@ git clone https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack.git
 cd OpenGenie-AI-Stack
 ```
 
-### 2. 스택 선택
-
-| 하드웨어 | 디렉토리 |
-|---------|---------|
-| NVIDIA GPU | `deployments/nvidia-compose-stack/` |
-| AMD ROCm GPU | `deployments/amd-compose-stack/` |
-| ARM64 (Apple Silicon / Jetson / Ampere) | `deployments/arm64-compose-stack/` |
+### 2. 환경 변수 설정
 
 ```bash
-cd deployments/amd-compose-stack   # 또는 nvidia / arm64
-```
+cd deployments/compose-stack
 
-### 3. 환경 변수 설정
+# 하드웨어에 맞는 예제를 복사
+cp .env.nvidia.example .env      # 또는 .env.amd.example / .env.arm64.example
 
-```bash
-cp .env.example .env
 # .env를 편집하고 모든 CHANGE_ME를 실제 값으로 교체하세요
 nano .env
 ```
 
-### 4. 하드웨어 캘리브레이션 (권장)
+세 개의 예제는 의도적으로 분리되어 있습니다. 플랫폼마다 정의하는 키가 다르며,
+일부 키는 비어 있는 것이 아니라 아예 없어야 합니다.
+
+### 3. 하드웨어 캘리브레이션 (권장)
 
 ```bash
-sudo bash master-deploy.sh init
+sudo -E bash deployments/tiger-deploy.sh
 ```
 
-CPU/GPU 사양을 자동 감지하고 최적화 튜닝 설정을 `tiger-tuning.env`에 기록합니다.
+하드웨어를 자동 감지하고 `TIGER_PLATFORM`을 내보낸 뒤,
+튜닝 설정을 `tiger-tuning.env`에 기록합니다.
 
-### 5. 배포
+### 4. 배포
 
 ```bash
 # 전체 배포 (모든 단계)
-sudo bash master-deploy.sh all
+sudo -E bash deployments/compose-stack/master-deploy.sh all
 
-# 또는 개별 단계 배포
-sudo bash 02-database-postgres-pgadmin/deploy.sh
-sudo bash 03-ai-interface-ollama-openwebui-redis/deploy.sh
+# 개별 단계 배포 —— 플랫폼을 직접 지정해야 합니다
+TIGER_PLATFORM=nvidia sudo -E bash \
+  deployments/compose-stack/02-database-postgres-pgadmin/deploy.sh all
 ```
 
-### 6. 검증
-
-```bash
-sudo bash master-deploy.sh test
-```
+`master-deploy.sh`는 플랫폼을 추측하지 않습니다. `TIGER_PLATFORM`이 설정되지 않으면
+잘못된 GPU 이미지를 받는 것을 막기 위해 오류와 함께 중단합니다.
 
 ---
 
@@ -126,10 +119,13 @@ sudo bash master-deploy.sh test
 
 ```
 deployments/
-├── amd-compose-stack/          # AMD ROCm 스택
-├── nvidia-compose-stack/       # NVIDIA CUDA 스택
-└── arm64-compose-stack/        # ARM64 스택
+├── tiger-deploy.sh             # 하드웨어 자동 감지
+└── compose-stack/
+    ├── lib/common.sh           # 공유 셸 라이브러리
+    ├── master-deploy.sh
+    ├── .env.{amd,nvidia,arm64}.example
     ├── 00-pre-flight-advisor/
+    ├── 00-system-setup-gpu-driver-and-docker/
     ├── 01-infra-webssh-portainer/
     ├── 02-database-postgres-pgadmin/
     ├── 03-ai-interface-ollama-openwebui-redis/
@@ -140,8 +136,7 @@ deployments/
     ├── 08-backup-recovery/
     ├── 09-monitoring-alerting/
     ├── 10-observability-grafana/
-    ├── master-deploy.sh
-    └── .env.example
+    └── migrations/
 ```
 
 ---

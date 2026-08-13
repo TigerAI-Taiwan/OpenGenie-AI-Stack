@@ -42,49 +42,48 @@ git clone https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack.git
 cd OpenGenie-AI-Stack
 ```
 
-### 2. スタックの選択
-
-| ハードウェア | ディレクトリ |
-|------------|------------|
-| NVIDIA GPU | `deployments/nvidia-compose-stack/` |
-| AMD ROCm GPU | `deployments/amd-compose-stack/` |
-| ARM64（Apple Silicon / Jetson / Ampere） | `deployments/arm64-compose-stack/` |
+### 2. 環境変数の設定
 
 ```bash
-cd deployments/amd-compose-stack   # または nvidia / arm64
-```
+cd deployments/compose-stack
 
-### 3. 環境変数の設定
+# ハードウェアに対応するサンプルをコピー
+cp .env.nvidia.example .env      # または .env.amd.example / .env.arm64.example
 
-```bash
-cp .env.example .env
-# .env を編集し、CHANGE_ME をすべて実際の値に置き換えてください
+# .env を編集し、すべての CHANGE_ME を実際の値に置き換えてください
 nano .env
 ```
 
-### 4. ハードウェアキャリブレーション（推奨）
+3 つのサンプルは意図的に分離しています。プラットフォームごとに定義するキーが異なり、
+一部のキーは空ではなく「存在しない」必要があるためです。
+
+### 3. ハードウェアキャリブレーション（推奨）
 
 ```bash
-sudo bash master-deploy.sh init
+sudo -E bash deployments/tiger-deploy.sh
 ```
 
-CPU/GPU スペックを自動検出し、最適化チューニング設定を `tiger-tuning.env` に書き込みます。
+ハードウェアを自動検出し、`TIGER_PLATFORM` をエクスポートして、
+チューニング設定を `tiger-tuning.env` に書き込みます。
 
-### 5. デプロイ
+### 4. デプロイ
 
 ```bash
-# 全フェーズ一括デプロイ
-sudo bash master-deploy.sh all
+# フルデプロイ（全フェーズ）
+sudo -E bash deployments/compose-stack/master-deploy.sh all
 
-# または個別フェーズをデプロイ
-sudo bash 02-database-postgres-pgadmin/deploy.sh
-sudo bash 03-ai-interface-ollama-openwebui-redis/deploy.sh
+# 個別フェーズのデプロイ —— プラットフォームは自分で指定します
+TIGER_PLATFORM=nvidia sudo -E bash \
+  deployments/compose-stack/02-database-postgres-pgadmin/deploy.sh all
 ```
 
-### 6. 動作確認
+`master-deploy.sh` はプラットフォームを推測しません。`TIGER_PLATFORM` が未設定の場合、
+誤った GPU イメージを取得することを避けるため、エラーで停止します。
+
+### 5. 検証
 
 ```bash
-sudo bash master-deploy.sh test
+sudo -E bash deployments/compose-stack/master-deploy.sh test
 ```
 
 ---
@@ -126,10 +125,13 @@ sudo bash master-deploy.sh test
 
 ```
 deployments/
-├── amd-compose-stack/          # AMD ROCm スタック
-├── nvidia-compose-stack/       # NVIDIA CUDA スタック
-└── arm64-compose-stack/        # ARM64 スタック
+├── tiger-deploy.sh             # ハードウェア自動検出
+└── compose-stack/
+    ├── lib/common.sh           # 共有シェルライブラリ
+    ├── master-deploy.sh
+    ├── .env.{amd,nvidia,arm64}.example
     ├── 00-pre-flight-advisor/
+    ├── 00-system-setup-gpu-driver-and-docker/
     ├── 01-infra-webssh-portainer/
     ├── 02-database-postgres-pgadmin/
     ├── 03-ai-interface-ollama-openwebui-redis/
@@ -140,8 +142,7 @@ deployments/
     ├── 08-backup-recovery/
     ├── 09-monitoring-alerting/
     ├── 10-observability-grafana/
-    ├── master-deploy.sh
-    └── .env.example
+    └── migrations/
 ```
 
 ---

@@ -1,12 +1,27 @@
-# Migration guide — single compose stack
+# Migration guide — v2.0.0 to v3.0.0
+
+**Applies to:** upgrading an existing v2.x install to **v3.0.0**.
+**Fresh installs do not need this document** — follow the README instead.
 
 The three deployment stacks (`amd-compose-stack`, `nvidia-compose-stack`,
 `arm64-compose-stack`) have been merged into one `deployments/compose-stack/`.
 The platform is now selected at run time by `TIGER_PLATFORM` instead of by
 which directory you deploy from.
 
-If you are installing for the first time, you do not need this document —
-just follow the README. This is for upgrading an existing machine.
+v3.0.0 is a **breaking** release. Six changes need action on an existing
+machine, and two of them stop services from working until you act:
+
+| # | Change | Action required |
+|:-:|---|---|
+| 1 | Ollama moves to a named volume | Copy your models, or they re-download |
+| 2 | OpenWebUI worker containers removed | Set `OWUI_UVICORN_WORKERS` |
+| 3 | Lemonade is AMD-only | NVIDIA/ARM64: uninstall the systemd units |
+| 4 | **MQTT requires authentication** | **Set `MQTT_USERNAME` / `MQTT_PASSWORD` or MQTT stops working** |
+| 5 | env file precedence reversed | Check for keys defined in two places |
+| 6 | `.env.example` is per platform | Copy the one matching your hardware |
+
+Back up before you start. Every section below is ordered so you can work
+straight down the page.
 
 ---
 

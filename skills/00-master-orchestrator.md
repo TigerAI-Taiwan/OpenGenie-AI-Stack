@@ -109,7 +109,7 @@ read_state() {
 Every state transition MUST go through this pattern — never write `.agent-state.json` directly. Backup-then-atomic-rename guarantees that a crashed write leaves either the old state or the new state, never a half-written file.
 
 ```bash
-# Usage: write_state '{"state": "INSTALLING_SYSTEM", "gpu": "NVIDIA", "stack": "deployments/nvidia-compose-stack"}'
+# Usage: write_state '{"state": "INSTALLING_SYSTEM", "gpu": "NVIDIA", "platform": "nvidia"}'
 write_state() {
   local new_json="$1"
 

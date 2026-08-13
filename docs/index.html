@@ -1086,7 +1086,7 @@
           <strong style="color:var(--fg)">For end users:</strong> Open the project in Antigravity / Claude Code, ask the
           assistant to "install this project" — it reads <code
             style="font-size:13px;background:var(--bg);padding:2px 5px;border-radius:4px;color:var(--accent)">skills/</code>
-          first, detects your GPU, generates a tuning profile, walks you through credential setup, and deploys all 12
+          first, detects your GPU, generates a tuning profile, walks you through credential setup, and deploys all 11
           phases with self-healing recovery.
         </p>
         <p style="font-size:14px;color:var(--muted);line-height:1.7">
@@ -1106,12 +1106,23 @@
           <span class="section-label">Quick Start</span>
           <h2 class="section-title">Up and running<br />in five steps</h2>
           <div class="divider"></div>
+          <div
+            style="margin-bottom:24px;padding:14px 16px;background:rgba(34,197,94,0.06);border:1px solid rgba(34,197,94,0.25);border-radius:8px">
+            <p style="font-size:13px;color:var(--muted);line-height:1.65;margin:0">
+              <strong style="color:var(--fg)">Upgrading from v2.x?</strong>
+              v3.0.0 merges the three per-platform stacks into one. Read the
+              <a href="https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/blob/main/docs/MIGRATION.md"
+                target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none">v2 → v3 migration
+                guide</a>
+              before redeploying — Ollama models, OpenWebUI workers and the MQTT broker all need a step.
+            </p>
+          </div>
           <div class="steps">
             <div class="step">
               <div class="step-num">1</div>
               <div class="step-body">
                 <strong>Clone the repo</strong>
-                <p>Clone and pick your hardware stack — AMD, NVIDIA, or ARM64.</p>
+                <p>One stack serves AMD, NVIDIA and ARM64 — the platform is detected at deploy time.</p>
               </div>
             </div>
             <div class="step">
@@ -1119,7 +1130,7 @@
               <div class="step-body">
                 <strong>Configure credentials</strong>
                 <p>Copy <code
-                    style="font-size:12px;background:var(--surface);padding:2px 5px;border-radius:4px">.env.example</code>
+                    style="font-size:12px;background:var(--surface);padding:2px 5px;border-radius:4px">.env.&lt;platform&gt;.example</code>
                   → <code style="font-size:12px;background:var(--surface);padding:2px 5px;border-radius:4px">.env</code>
                   and replace all <code
                     style="font-size:12px;background:var(--surface);padding:2px 5px;border-radius:4px">CHANGE_ME</code>
@@ -1164,22 +1175,19 @@
 <span class="k">git</span> clone https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack.git
 <span class="k">cd</span> OpenGenie-AI-Stack
 
-<span class="c"># 2. Pick your stack</span>
-<span class="k">cd</span> deployments/amd-compose-stack
-<span class="c">#        or: nvidia-compose-stack / arm64-compose-stack</span>
-
-<span class="c"># 3. Configure</span>
-<span class="k">cp</span> .env.example .env
+<span class="c"># 2. Configure</span>
+<span class="k">cd</span> deployments/compose-stack
+<span class="k">cp</span> .env.nvidia.example .env  <span class="c"># or .env.amd.example / .env.arm64.example</span>
 <span class="k">nano</span> .env  <span class="c"># replace CHANGE_ME values</span>
 
-<span class="c"># 4. Hardware calibration (recommended)</span>
-<span class="k">sudo</span> bash master-deploy.sh init
+<span class="c"># 3. Hardware calibration (recommended)</span>
+<span class="k">sudo</span> -E bash deployments/tiger-deploy.sh
 
-<span class="c"># 5. Deploy everything</span>
-<span class="k">sudo</span> bash master-deploy.sh all
+<span class="c"># 4. Deploy everything</span>
+<span class="k">sudo</span> -E bash deployments/compose-stack/master-deploy.sh all
 
-<span class="c"># 6. Verify</span>
-<span class="k">sudo</span> bash master-deploy.sh test</pre>
+<span class="c"># 5. Verify</span>
+<span class="k">sudo</span> -E bash deployments/compose-stack/master-deploy.sh test</pre>
           </div>
         </div>
       </div>
@@ -1209,6 +1217,8 @@
       <div class="social-row">
         <a href="https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/blob/main/README.md" class="social-badge"
           target="_blank" rel="noopener">📄 Documentation</a>
+        <a href="https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/blob/main/docs/MIGRATION.md" class="social-badge"
+          target="_blank" rel="noopener">🔀 Migration Guide (v2 → v3)</a>
         <a href="https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/issues" class="social-badge" target="_blank"
           rel="noopener">🐛 Issues</a>
         <a href="https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/blob/main/LICENSE" class="social-badge"
@@ -1265,16 +1275,16 @@
 跨平台多層級硬體感知（NVIDIA CUDA、AMD ROCm、CPU、ARM64）。
 
 硬體感知器 (Hardware Identification):
-* NVIDIA Host -> 偵測 CUDA 核心，自動導向 deployments/nvidia-compose-stack。
-* AMD Host -> 檢查 /dev/kfd，採用 deployments/amd-compose-stack。
-* ARM64 Host (如 Apple Silicon / Jetson) -> 檢查核心架喚，使用 deployments/arm64-compose-stack。
+* NVIDIA Host -> 偵測 CUDA 核心，設定 TIGER_PLATFORM=nvidia。
+* AMD Host -> 檢查 /dev/kfd，設定 TIGER_PLATFORM=amd。
+* ARM64 Host (如 Apple Silicon / Jetson) -> 檢查核心架構，設定 TIGER_PLATFORM=arm64。
 * CPU Fallback -> 若無 any GPU，以 CPU 純算模式部署。`,
 
       skill04: `[Skill 04: Full Purge Procedure]
 徹底清除先前部署與原生 Systemd 服務，使主機恢復至完全乾淨的 Pristine 狀態。
 
 淨化步驟 (Purge Execution Sequence):
-1. 🛑 停止容器: cd deployments/<stack> && docker compose down -v
+1. 🛑 停止容器: 逐一對各模組執行 master-deploy.sh clean（反向關閉）。
 2. 🧹 清理磁碟: 執行 docker system prune -a --volumes 清除快取與無用 Volume。
 3. 🔌 卸載原生服務: 停止並禁用 Lemonade native (systemd) 服務及設定檔。
 4. 📁 清空工作區: 徹底移除日誌資料夾 /home/wrt/TigerAI 確保下次部署完全乾淨。`,
@@ -1283,7 +1293,7 @@
 自主代理人（AI Agent）進行全自動化部署的高階生命週期指南。
 
 安裝生命週期 (Installation Lifecycle Steps):
-1. 🔍 Probe System -> 自動感知主機架構、GPU，挑選適當 compose-stack。
+1. 🔍 Probe System -> 自動感知主機架構、GPU，決定 TIGER_PLATFORM。
 2. 🔑 Setup Secrets -> 安全防漏密，建立 .env 並引導使用者直覺填入金鑰。
 3. 📦 Drivers & Core -> 部署基礎引擎，引導重新開機確保驅動就緒。
 4. ⚙️ HWI Advisor -> 執行硬體診斷與性能微調，選定優化設定檔。

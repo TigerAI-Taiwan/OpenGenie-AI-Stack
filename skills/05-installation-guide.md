@@ -18,7 +18,7 @@ You must operate as a strict **State Machine**, performing safe system probes, v
            │
 [Step 4: Hardware Calibration] ──→ Run HWI Advisor, select profile (Conservative/Balanced/Optimal)
            │
-[Step 5: Full Stack Deployment] ──→ Start all 12-phase containers and verify service health
+[Step 5: Full Stack Deployment] ──→ Start all 11-phase containers and verify service health
 ```
 
 ---
@@ -34,9 +34,11 @@ uname -m
 # Detect GPU type
 lspci | grep -iE 'vga|3d|display' | grep -iE 'nvidia|amd|radeon|intel'
 ```
-*   **NVIDIA Host (x86_64)** → Use `deployments/nvidia-compose-stack`
-*   **AMD ROCm Host (x86_64)** → Use `deployments/amd-compose-stack`
-*   **ARM64 NVIDIA/Generic Host** → Use `deployments/arm64-compose-stack`
+*   **NVIDIA Host (x86_64)** → `TIGER_PLATFORM=nvidia`
+*   **AMD ROCm Host (x86_64)** → `TIGER_PLATFORM=amd`
+*   **ARM64 NVIDIA/Generic Host** → `TIGER_PLATFORM=arm64`
+
+All three deploy from the same `deployments/compose-stack/`.
 
 ### Action B: Secure Credentials Configuration
 Copy the template and check for placeholder secrets:

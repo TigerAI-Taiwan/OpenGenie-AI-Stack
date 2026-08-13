@@ -92,11 +92,17 @@ Combine these results with `.agent-state.json` to identify your exact state belo
    ls .env 2>/dev/null && echo "ENV_EXISTS" || echo "ENV_MISSING"
    ```
 
-   If `ENV_MISSING`, copy the template:
+   If `ENV_MISSING`, copy the template matching the detected platform:
    ```bash
-   cp .env.example .env
+   cd deployments/compose-stack
+   cp .env.${TIGER_PLATFORM}.example .env
    ```
-   > ⚠️ **nvidia-compose-stack and arm64-compose-stack do NOT have a root-level `.env.example`.** The per-stack env layout differs from AMD and is not finalized yet (AMD aggregates everything at the root; NVIDIA/ARM ship per-module `.env.example` files in some sub-directories, but the field coverage is incomplete). For now, if you are on NVIDIA or ARM, **stop here and ask the user how to bootstrap `.env`** — do NOT copy AMD's root template across stacks (variable shapes differ, e.g. ROCm vs CUDA fields). This will be resolved when the per-module env structure is finalized.
+   > All three platforms now ship a complete root-level template
+   > (`.env.amd.example` / `.env.nvidia.example` / `.env.arm64.example`).
+   > ⚠️ **Do not merge them or copy one platform's file to another.** They
+   > define different keys, and some keys must be *absent* rather than empty
+   > on a given platform — `--env-file` feeds the whole file to compose, so a
+   > merged file would hand every platform's keys to all of them.
 
    Now scan for all fields that still need values:
    ```bash

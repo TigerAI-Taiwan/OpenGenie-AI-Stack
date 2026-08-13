@@ -15,13 +15,12 @@
 
 OpenGenie AI Stack is a modular, self-hosted AI infrastructure framework for AMD, NVIDIA, and ARM64 hardware. It transforms a standard GPU server into a production-ready AI appliance through a structured 11-phase deployment methodology.
 
-Each phase is independently deployable and contains its own `deploy.sh` and `docker-compose.yaml`. Stacks are located under `deployments/`:
+Each phase is independently deployable and contains its own `deploy.sh` and, where it runs containers, a `docker-compose.base.yaml` plus a per-platform overlay. One stack serves all three platforms; the target is selected at run time by `TIGER_PLATFORM`:
 
 ```
 deployments/
-├── amd-compose-stack/      # AMD ROCm GPU
-├── nvidia-compose-stack/   # NVIDIA CUDA GPU
-└── arm64-compose-stack/    # ARM64 (Apple Silicon / Ampere / Jetson)
+├── tiger-deploy.sh         # detects hardware, exports TIGER_PLATFORM
+└── compose-stack/          # AMD ROCm / NVIDIA CUDA / ARM64
 ```
 
 ---
@@ -110,10 +109,13 @@ All services share a single Docker bridge network: `ai_stack_net`
 
 ---
 
-## 8. Per-Stack References
+## 8. Platform-Specific Details
 
-For stack-specific details (driver versions, GPU runtime config, platform notes):
+Driver versions, GPU runtime config and platform notes live with the code
+rather than in separate per-stack documents:
 
-- AMD: `deployments/amd-compose-stack/README.md`
-- NVIDIA: `deployments/nvidia-compose-stack/SDD.md`
-- ARM64: `deployments/arm64-compose-stack/SDD.md`
+- Host setup: `deployments/compose-stack/00-system-setup-gpu-driver-and-docker/resource/<platform>/install.sh`
+- GPU access and images: each module's `docker-compose.<platform>.yaml`
+- Platform-specific checks: `resource/<platform>/` under `07`, `08` and `09`
+
+Upgrading from v2.x (three per-platform stacks): `docs/MIGRATION.md`.
