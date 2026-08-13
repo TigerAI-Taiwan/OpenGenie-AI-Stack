@@ -57,14 +57,12 @@ sudo bash master-deploy.sh all
 | **10** | cAdvisor | 8088 | ✅ | 容器監控 |
 | **10** | Loki | 3100 | ✅ | 日誌聚合 |
 | **10** | DCGM Exporter | - | ✅ | GPU指標匯出 |
-| **11** | WUD | 3838 | ✅ | 容器更新監控 |
 
 ### **Key Features**
 - ✅ **N8N_SECURE_COOKIE**: 已配置於所有 n8n 服務
 - ✅ **Redis 隔離**: DB 0 (n8n), DB 1 (OpenWebUI)
 - ✅ **Schema 隔離**: PostgreSQL 中的 `n8n` 和 `openwebui` schema
 - ✅ **GPU 監控**: DCGM Exporter + Grafana 整合
-- ✅ **自訂 Registry**: WUD 支援 docker.n8n.io
 
 ---
 
@@ -79,7 +77,6 @@ sudo bash master-deploy.sh all
 | **cAdvisor** | http://localhost:8088 | - | 容器監控 |
 | **Portainer** | http://localhost:9000 | - | Docker 管理 |
 | **pgAdmin** | http://localhost:8000 | - | 資料庫管理 |
-| **WUD** | http://localhost:3838 | - | 容器更新監控 |
 | **Qdrant** | http://localhost:6333 | - | 向量資料庫 API |
 
 ---
@@ -151,7 +148,6 @@ sudo bash master-deploy.sh all
 ### **Credentials**
 - **Grafana**: admin / CHANGE_ME
 - **PostgreSQL**: adm / (from .env)
-- **WUD**: 無驗證 (可自行配置)
 
 ### **Network**
 - **Shared Network**: `ai_stack_net` (所有服務)
@@ -172,7 +168,6 @@ nvidia-compose-stack/
 ├── 05-rag-stack-docling-qdrant-mosquitto/  # RAG 堆疊
 ├── 06-ai-core-lemonade/        # AI 核心引擎
 ├── 10-observability-grafana/   # 監控與可觀測性
-├── 11-lifecycle-wud/           # 容器生命週期管理
 └── master-deploy.sh            # 主部署腳本
 ```
 

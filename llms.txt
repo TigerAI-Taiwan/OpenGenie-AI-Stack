@@ -41,11 +41,9 @@
 - [Phase 05 — RAG stack: Docling + Qdrant + Mosquitto MQTT](https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/tree/main/deployments/amd-compose-stack/05-rag-stack-docling-qdrant-mosquitto)
 - [Phase 06 — AI core: Lemonade inference engine](https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/tree/main/deployments/amd-compose-stack/06-ai-core-lemonade)
 - [Phase 07 — Validation: health checks + benchmarks](https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/tree/main/deployments/amd-compose-stack/07-validation-stack)
-- [Phase 07 — Node-RED automation (optional)](https://raw.githubusercontent.com/TigerAI-Taiwan/OpenGenie-AI-Stack/main/deployments/amd-compose-stack/07-automation-nodered/README.md)
 - [Phase 08 — Backup & recovery: one-click snapshot + restore](https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/tree/main/deployments/amd-compose-stack/08-backup-recovery)
 - [Phase 09 — Monitoring & alerting: tiger-monitor + MQTT alerts](https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/tree/main/deployments/amd-compose-stack/09-monitoring-alerting)
 - [Phase 10 — Observability: Grafana + Prometheus + Loki + cAdvisor + DCGM](https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/tree/main/deployments/amd-compose-stack/10-observability-grafana)
-- [Phase 11 — Lifecycle: What's Up Docker (image update tracking)](https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/tree/main/deployments/amd-compose-stack/11-lifecycle-wud)
 
 ## Default service ports
 
@@ -61,7 +59,6 @@
 - Loki: http://localhost:3100
 - Mosquitto MQTT: tcp://localhost:1883
 - Docling: http://localhost:5001
-- WUD: http://localhost:3838
 
 ## Repository
 

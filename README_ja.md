@@ -94,7 +94,7 @@ sudo bash master-deploy.sh test
 | フェーズ | レイヤー | コアコンポーネント |
 |:-------:|---------|-----------------|
 | 00 | HWI アドバイザー | ハードウェア自動キャリブレーション、チューニングプロファイル生成 |
-| 00 | システム基盤 | ドライバーセットアップ、Docker、Node-RED |
+| 00 | システム基盤 | ドライバーセットアップ、Docker |
 | 01 | インフラストラクチャ | Portainer、WebSSH |
 | 02 | データベース | PostgreSQL 17、pgAdmin 4 |
 | 03 | AI インターフェース | Ollama、OpenWebUI、Redis |
@@ -105,7 +105,6 @@ sudo bash master-deploy.sh test
 | 08 | バックアップ & リカバリー | ワンクリックバックアップ、リストア、VRAM パージ |
 | 09 | 監視 & アラート | tiger-monitor、MQTT アラートワークフロー |
 | 10 | 可観測性 | Grafana、Prometheus、Loki、cAdvisor |
-| 11 | ライフサイクル | What's Up Docker（WUD） |
 
 ---
 
@@ -120,7 +119,6 @@ sudo bash master-deploy.sh test
 | pgAdmin | 8000 |
 | Qdrant | 6333 |
 | Ollama | 11434 |
-| WUD | 3838 |
 
 ---
 
@@ -142,9 +140,6 @@ deployments/
     ├── 08-backup-recovery/
     ├── 09-monitoring-alerting/
     ├── 10-observability-grafana/
-    ├── 11-lifecycle-wud/
-    ├── 12-commercial-gateway/
-    ├── 13-landing-portal/
     ├── master-deploy.sh
     └── .env.example
 ```

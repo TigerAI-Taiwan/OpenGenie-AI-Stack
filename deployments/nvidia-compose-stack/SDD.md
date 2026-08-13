@@ -17,7 +17,7 @@
 To provide an enterprise-grade AI infrastructure on Ubuntu 24.04 LTS optimized for NVIDIA GPUs using Docker Compose and native system services, with comprehensive monitoring, automation, and RAG capabilities.
 
 ### 2. Architecture Overview
-Modular microservices architecture utilizing NVIDIA Docker Runtimes and CUDA-optimized inference engines, with complete observability and lifecycle management.
+Modular microservices architecture utilizing NVIDIA Docker Runtimes and CUDA-optimized inference engines, with complete observability.
 
 ### 3. Service Layer Breakdown
 
@@ -31,7 +31,6 @@ Modular microservices architecture utilizing NVIDIA Docker Runtimes and CUDA-opt
 | **05** | RAG Stack | Mosquitto, Docling, Qdrant | GPU-accelerated vector search | ⚠️ |
 | **06** | AI Core | Lemonade (Core) | `--llamacpp cuda` and `CUDA_VISIBLE_DEVICES` | ✅ |
 | **10** | Observability | Grafana, Prometheus, Loki, cAdvisor, DCGM | Complete monitoring stack | ✅ |
-| **11** | Lifecycle | What's Up Docker (WUD) | Container update monitoring | ✅ |
 
 ---
 
@@ -184,22 +183,6 @@ scrape_configs:
 - Log aggregation service
 - Integrated with Grafana
 
-### 8. Lifecycle Management (WUD)
-
-#### **What's Up Docker Configuration**
-- **Port**: 3838
-- **Authentication**: Disabled (can be configured manually)
-- **Cron Schedule**: `0 4 * * *` (Daily at 4 AM)
-- **Custom Registry**: docker.n8n.io support added
-
-#### **Monitored Registries**
-- Docker Hub
-- GitHub Container Registry (ghcr.io)
-- Google Container Registry (gcr.io)
-- Quay.io
-- AWS ECR
-- Custom: docker.n8n.io (for n8n)
-
 ---
 
 ## C. Security & Performance (資安與效能)
@@ -209,7 +192,6 @@ scrape_configs:
 #### **Authentication**
 - **Grafana**: Basic Auth (admin / CHANGE_ME)
 - **PostgreSQL**: Password-based (adm / from .env)
-- **WUD**: Anonymous (configurable)
 - **Other Services**: Behind reverse proxy (Cloudflare)
 
 #### **Network Isolation**
@@ -311,9 +293,6 @@ docker compose up -d qdrant mosquitto
 
 # 7. Observability
 10-observability-grafana/deploy.sh
-
-# 8. Lifecycle
-11-lifecycle-wud/deploy.sh
 ```
 
 ### 2. Health Checks
@@ -366,12 +345,7 @@ docker run --rm -v prometheus_data:/data -v $(pwd):/backup alpine tar czf /backu
    - **Cause**: Redis not started before n8n
    - **Solution**: Ensure 03-ai-interface is deployed before 04-automation
 
-3. **WUD Authentication Not Working**
-   - **Symptom**: Login page not appearing
-   - **Cause**: Incorrect bcrypt hash format
-   - **Solution**: Use htpasswd file method or disable authentication
-
-4. **Grafana No Data**
+3. **Grafana No Data**
    - **Symptom**: Empty dashboards
    - **Cause**: Data sources not configured or no metrics
    - **Solution**: Check Prometheus targets, import dashboards
@@ -382,8 +356,7 @@ docker run --rm -v prometheus_data:/data -v $(pwd):/backup alpine tar czf /backu
 
 ### Current Limitations
 1. **Docling**: Requires x86-64-v2 CPU (incompatible with basic KVM CPU models)
-2. **WUD Authentication**: Currently disabled (manual configuration required)
-3. **Grafana Dashboards**: Require manual import or creation
+2. **Grafana Dashboards**: Require manual import or creation
 
 ### Planned Enhancements
 1. **Auto-scaling**: Dynamic worker scaling based on load
@@ -439,7 +412,6 @@ DCGM_EXPORTER_IMAGE=nvidia/dcgm-exporter:latest
 ## H. Maintenance Procedures
 
 ### Daily Operations
-- Monitor WUD for container updates (automatic at 4 AM)
 - Check Grafana dashboards for anomalies
 - Review container logs for errors
 
@@ -449,7 +421,6 @@ DCGM_EXPORTER_IMAGE=nvidia/dcgm-exporter:latest
 - Verify backup integrity
 
 ### Monthly Tasks
-- Update container images (via WUD recommendations)
 - Review and optimize resource allocation
 - Audit access logs and security settings
 
@@ -463,7 +434,6 @@ DCGM_EXPORTER_IMAGE=nvidia/dcgm-exporter:latest
 | 1883 | Mosquitto | MQTT | Internal |
 | 3000 | Grafana | HTTP | External |
 | 3100 | Loki | HTTP | Internal |
-| 3838 | WUD | HTTP | External |
 | 5001 | Docling | HTTP | Internal |
 | 5432 | PostgreSQL | TCP | Internal |
 | 5678 | n8n | HTTP | External |

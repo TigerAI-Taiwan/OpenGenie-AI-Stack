@@ -30,7 +30,6 @@ DEPLOY_STEPS=(
     "09-monitoring-alerting"
     "08-backup-recovery"
     "10-observability-grafana"
-    "11-lifecycle-wud"
 )
 
 VALIDATION_SCRIPT="./07-validation-stack/check-health.sh"

@@ -16,12 +16,12 @@
 ## 🏗️ 結構說明
 本目錄與 `nvidia-compose-stack` 保持邏輯自洽，確保 12-Phase 方法論的一致性。
 
-- **00 System Setup**: NVIDIA 驅動、Docker 與 **原生隱形 Node-RED**。
+- **00 System Setup**: NVIDIA 驅動與 Docker。
 - **01-02 Infra & DB**: 基礎架構（Portainer Socket Proxy）與資料庫（Schema 隔離）。
 - **03-04 AI & Auto**: 對話介面（Ollama HA）與工作流自動化（n8n Queue Mode）。
 - **05-06 RAG & Core**: 知識庫（Docling/Qdrant）與原生推論核心（Lemonade）。
 - **07-09 Reliability**: 健康驗證、災難復原（Backup/Recovery）與主動告警。
-- **10-13 Ops & Business**: 進階觀測、生命週期管理、商業閘道與 Landing Portal。
+- **10 Ops**: 進階觀測（Grafana / Prometheus / Loki）。
 
 ## 🚀 快速啟動
 
@@ -48,12 +48,10 @@ sudo bash master-deploy.sh status
 
 | Service | Host Port | Layer |
 | :--- | :--- | :--- |
-| **Landing Portal** | `80` | Phase 13 - Entry |
 | **OpenWebUI** | `8080` | Phase 03 - Chat |
 | **n8n** | `5678` | Phase 04 - Automation |
 | **Grafana** | `3000` | Phase 10 - Observability |
 | **Portainer** | `9000` | Phase 01 - Docker Admin |
-| **Node-RED** | `1880` | Phase 00 - Stealth Admin |
 
 ## ⚠️ 注意事項 (ARM64 Specific)
 1. **GPU 加速**: 

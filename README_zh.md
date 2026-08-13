@@ -94,7 +94,7 @@ sudo bash master-deploy.sh test
 | Phase | 層級 | 核心元件 |
 |:-----:|------|----------|
 | 00 | HWI 評估 | 硬體自動校準，產生調優設定檔 |
-| 00 | 系統底座 | 驅動安裝、Docker、Node-RED |
+| 00 | 系統底座 | 驅動安裝、Docker |
 | 01 | 基礎建設 | Portainer、WebSSH |
 | 02 | 資料庫 | PostgreSQL 17、pgAdmin 4 |
 | 03 | AI 介面 | Ollama、OpenWebUI、Redis |
@@ -105,7 +105,6 @@ sudo bash master-deploy.sh test
 | 08 | 備份與還原 | 一鍵備份、還原、VRAM 清除 |
 | 09 | 監控告警 | tiger-monitor、MQTT 告警流程 |
 | 10 | 可觀測性 | Grafana、Prometheus、Loki、cAdvisor |
-| 11 | 生命週期 | What's Up Docker（WUD） |
 
 ---
 
@@ -120,7 +119,6 @@ sudo bash master-deploy.sh test
 | pgAdmin | 8000 |
 | Qdrant | 6333 |
 | Ollama | 11434 |
-| WUD | 3838 |
 
 ---
 
@@ -142,9 +140,6 @@ deployments/
     ├── 08-backup-recovery/
     ├── 09-monitoring-alerting/
     ├── 10-observability-grafana/
-    ├── 11-lifecycle-wud/
-    ├── 12-commercial-gateway/
-    ├── 13-landing-portal/
     ├── master-deploy.sh
     └── .env.example
 ```

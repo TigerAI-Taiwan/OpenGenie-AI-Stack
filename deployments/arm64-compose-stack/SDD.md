@@ -13,11 +13,10 @@
 本堆疊是 TigerAI Open-AI-Stack 在 ARM64 架構下的原生實作。主要針對 **Apple Silicon** 與 **Enterprise ARM (Ampere)** 伺服器進行優化，並完整支持 **NVIDIA ARM (Blackwell)** 系列。
 
 ## 2. 核心特性 (v2.0 Synchronized)
-- **12+1 層級方法論**: 從底層驅動到 Landing Portal 的全流程覆蓋。
+- **分層方法論**: 從底層驅動到可觀測性的全流程覆蓋。
 - **n8n Queue Mode**: 整合 Redis 隊列與分布式 Worker 支援。
 - **PostgreSQL 硬化**: 強制 Schema 隔離 (n8n/openwebui) 與 5432 埠隱藏。
 - **進階觀測性**: 整合 Grafana, Prometheus 與 Loki，支持 ARM64 系統與 NVIDIA GPU 監控。
-- **Stealth Administration**: Node-RED 原生安裝，不留容器痕跡。
 
 ## 3. 模組詳情
 - **Phase 00**: 針對 **NVIDIA Grace Blackwell (GB200/GB10) / GH200** 優化，安裝對應之 ARM64 驅動。

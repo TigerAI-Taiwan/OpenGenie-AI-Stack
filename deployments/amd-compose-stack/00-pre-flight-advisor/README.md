@@ -83,7 +83,6 @@ The following services automatically use tiger-tuning.env:
 - ✅ 04-automation-n8n
 - ✅ 05-rag-stack-docling-qdrant-mosquitto
 - ✅ 09-monitoring-alerting
-- ✅ 11-lifecycle-wud
 
 ## 🎯 Best Practices
 

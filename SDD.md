@@ -42,9 +42,6 @@ deployments/
 | **08** | Backup | Disaster Recovery | `backup-tigerai.sh`, `restore-tigerai.sh` — 1-click backup and restore |
 | **09** | Alert | Monitoring | `tiger-monitor.sh`, MQTT alert workflows — proactive health alerting |
 | **10** | Ops | Observability | Grafana, Prometheus, Loki, cAdvisor, DCGM — GPU telemetry and SLA dashboards |
-| **11** | Life | Lifecycle | What's Up Docker (WUD) — controlled container update management |
-| **12** | SaaS | Commercial Gateway | FastAPI bridge — OTA sync and license management (optional) |
-| **13** | Portal | Landing Portal | Landing page with system status and service links |
 
 ---
 
@@ -52,7 +49,6 @@ deployments/
 
 | Phase | Service | Default Port | Notes |
 |:------|:--------|:------------:|:------|
-| 00 | Node-RED (native) | 1880 | Admin automation agent, native install |
 | 01 | Portainer | 9000 | Container management UI |
 | 01 | WebSSH | 8888 | Browser-based terminal |
 | 02 | PostgreSQL | 5432 | Internal only (not exposed to host) |
@@ -64,9 +60,6 @@ deployments/
 | 05 | Docling | 5001 | Document processing API |
 | 05 | Mosquitto (MQTT) | 443 | IoT/monitoring message broker |
 | 10 | Grafana | 3000 | Observability dashboard |
-| 11 | WUD | 3838 | Container update manager |
-| 12 | Commercial Gateway | 5055 | Optional SaaS API bridge |
-| 13 | Landing Portal | 80 / 443 | Public-facing entry point |
 
 ---
 

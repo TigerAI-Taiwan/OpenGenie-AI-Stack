@@ -54,7 +54,6 @@ sudo bash master-deploy.sh all
 | **OpenWebUI** | `8080` | Phase 03 - Chat Entry |
 | **n8n** | `5678` | Phase 04 - Automation |
 | **Grafana** | `3000` | Phase 10 - Observability |
-| **Node-RED** | `1880` | Phase 00 - Stealth Admin |
 | **Portainer** | `9000` | Phase 01 - Docker Admin |
 | **cAdvisor** | `8088` | Phase 10 - Container Metrics |
 | **WebSSH** | `2222` | Phase 01 - Remote Terminal |
@@ -65,7 +64,6 @@ sudo bash master-deploy.sh all
 ## 🛠️ Performance Optimization (HWI Integrated)
 *   **Dynamic Tuning**: Application concurrency (n8n workers) and CPU threads (Lemonade) are automatically scaled based on your `init` profile.
 *   **ROCm Tuning**: Automated setup for ROCm kernel parameters and graphics version overrides.
-*   **Node-RED Stealth**: Native Node.js install, hidden from standard container enumeration.
 *   **Vulkan Core**: Lemonade engine pre-configured for Vulkan-based hardware acceleration.
 
 ## 📂 Structure

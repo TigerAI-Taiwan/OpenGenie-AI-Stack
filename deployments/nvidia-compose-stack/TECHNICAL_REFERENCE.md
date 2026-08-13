@@ -9,7 +9,6 @@
 | 2222 | WebSSH | webssh | HTTP | Admin |
 | 3000 | Grafana | grafana | HTTP | Public |
 | 3100 | Loki | loki | HTTP | Internal |
-| 3838 | WUD | wud | HTTP | Public |
 | 5001 | Docling | docling | HTTP | Internal |
 | 5678 | n8n | n8n-main | HTTP | Public |
 | 6333 | Qdrant HTTP | qdrant | HTTP | Internal |
@@ -155,7 +154,6 @@ ai_stack_net (external: true)
 ├── loki (hostname: loki)
 ├── cadvisor (hostname: cadvisor)
 ├── gpu-exporter (hostname: gpu-exporter)
-├── wud (hostname: wud)
 ├── portainer (hostname: portainer)
 ├── webssh (hostname: webssh)
 └── cloudflare (hostname: cloudflare)
@@ -280,13 +278,6 @@ cd 10-observability-grafana
 # - Grafana (visualization, depends on Prometheus & Loki)
 ```
 
-#### **Phase 7: Lifecycle Management** (Can start anytime)
-```bash
-# 7.1 WUD (What's Up Docker)
-cd 11-lifecycle-wud
-./deploy.sh
-```
-
 ### Dependency Graph
 ```
 Network (ai_stack_net)
@@ -393,26 +384,20 @@ docker logs openwebui-main | grep -i database
 ├── 06-ai-core-lemonade/                # AI core engine
 │   └── deploy.sh
 │
-├── 10-observability-grafana/           # Monitoring
-│   ├── .env
-│   ├── docker-compose.yaml
-│   ├── deploy.sh
-│   ├── prometheus/
-│   │   └── prometheus.yml
-│   └── grafana/
-│       └── provisioning/
-│           ├── datasources/
-│           │   └── datasources.yml
-│           └── dashboards/
-│               ├── dashboards.yml
-│               ├── docker-containers.json
-│               └── nvidia-gpu.json
-│
-└── 11-lifecycle-wud/                   # Lifecycle management
+└── 10-observability-grafana/           # Monitoring
+    ├── .env
     ├── docker-compose.yaml
     ├── deploy.sh
-    └── auth/
-        └── .htpasswd (if authentication enabled)
+    ├── prometheus/
+    │   └── prometheus.yml
+    └── grafana/
+        └── provisioning/
+            ├── datasources/
+            │   └── datasources.yml
+            └── dashboards/
+                ├── dashboards.yml
+                ├── docker-containers.json
+                └── nvidia-gpu.json
 ```
 
 ### Docker Volumes
@@ -448,7 +433,7 @@ docker volume inspect <volume_name>
 | `/opt/tigerai/mosquitto/config` | `/mosquitto/config` | Mosquitto | MQTT config |
 | `/opt/tigerai/mosquitto/data` | `/mosquitto/data` | Mosquitto | MQTT data |
 | `/opt/tigerai/mosquitto/log` | `/mosquitto/log` | Mosquitto | MQTT logs |
-| `/var/run/docker.sock` | `/var/run/docker.sock` | WUD, cAdvisor, Portainer | Docker API |
+| `/var/run/docker.sock` | `/var/run/docker.sock` | cAdvisor, Portainer | Docker API |
 
 ### Volume Management Commands
 ```bash

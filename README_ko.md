@@ -94,7 +94,7 @@ sudo bash master-deploy.sh test
 | 단계 | 레이어 | 핵심 컴포넌트 |
 |:---:|-------|------------|
 | 00 | HWI 어드바이저 | 하드웨어 자동 캘리브레이션, 튜닝 프로파일 생성 |
-| 00 | 시스템 기반 | 드라이버 설치, Docker, Node-RED |
+| 00 | 시스템 기반 | 드라이버 설치, Docker |
 | 01 | 인프라스트럭처 | Portainer, WebSSH |
 | 02 | 데이터베이스 | PostgreSQL 17, pgAdmin 4 |
 | 03 | AI 인터페이스 | Ollama, OpenWebUI, Redis |
@@ -105,7 +105,6 @@ sudo bash master-deploy.sh test
 | 08 | 백업 & 복구 | 원클릭 백업, 복원, VRAM 초기화 |
 | 09 | 모니터링 & 알림 | tiger-monitor, MQTT 알림 워크플로우 |
 | 10 | 가시성 | Grafana, Prometheus, Loki, cAdvisor |
-| 11 | 라이프사이클 | What's Up Docker (WUD) |
 
 ---
 
@@ -120,7 +119,6 @@ sudo bash master-deploy.sh test
 | pgAdmin | 8000 |
 | Qdrant | 6333 |
 | Ollama | 11434 |
-| WUD | 3838 |
 
 ---
 
@@ -142,9 +140,6 @@ deployments/
     ├── 08-backup-recovery/
     ├── 09-monitoring-alerting/
     ├── 10-observability-grafana/
-    ├── 11-lifecycle-wud/
-    ├── 12-commercial-gateway/
-    ├── 13-landing-portal/
     ├── master-deploy.sh
     └── .env.example
 ```

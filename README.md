@@ -94,7 +94,7 @@ sudo bash master-deploy.sh test
 | Phase | Layer | Components |
 |:-----:|-------|------------|
 | 00 | HWI Advisor | Auto hardware calibration, tuning profile |
-| 00 | Foundation | Driver setup, Docker, Node-RED |
+| 00 | Foundation | Driver setup, Docker |
 | 01 | Infrastructure | Portainer, WebSSH |
 | 02 | Database | PostgreSQL 17, pgAdmin 4 |
 | 03 | AI Interface | Ollama, OpenWebUI, Redis |
@@ -105,7 +105,6 @@ sudo bash master-deploy.sh test
 | 08 | Backup & Recovery | 1-click backup, restore, VRAM purge |
 | 09 | Monitoring & Alerts | tiger-monitor, MQTT alerting |
 | 10 | Observability | Grafana, Prometheus, Loki, cAdvisor |
-| 11 | Lifecycle | What's Up Docker (WUD) |
 
 ---
 
@@ -121,7 +120,6 @@ sudo bash master-deploy.sh test
 | Qdrant | 6333 |
 | Ollama | 11434 |
 | Lemonade | 8080 |
-| WUD | 3838 |
 
 ---
 
@@ -143,9 +141,6 @@ deployments/
     ├── 08-backup-recovery/
     ├── 09-monitoring-alerting/
     ├── 10-observability-grafana/
-    ├── 11-lifecycle-wud/
-    ├── 12-commercial-gateway/
-    ├── 13-landing-portal/
     ├── master-deploy.sh
     └── .env.example
 ```
