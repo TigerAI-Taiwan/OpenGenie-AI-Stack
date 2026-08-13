@@ -24,7 +24,7 @@ fi
 
 # Robust Variable Cleansing (Against Windows CRLF)
 for var in $(env | grep -E 'PORT|IMAGE|URL|PATH|USER|PASS|DB|SECRET|TZ' | cut -d= -f1); do
-  export "$var"="$(echo "${!var}" | tr -d '')"
+  export "$var"="$(echo "${!var}" | tr -d '\r')"
 done
 
 LOG_PREFIX="TigerAI Lemonade"
