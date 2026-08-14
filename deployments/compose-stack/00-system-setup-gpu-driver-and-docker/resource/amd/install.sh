@@ -15,9 +15,15 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 # <module>/resource/amd/<this file>  ->  ../.. is the module directory.
 TIGER_MODULE_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd -P)"
-TIGER_LOG_PREFIX="TigerAI System Setup"
+TIGER_LOG_PREFIX="TigerAI Foundation (AMD)"
 # shellcheck source=../../../lib/common.sh
 source "${TIGER_MODULE_DIR}/../lib/common.sh"
+
+# Fallback defaults
+ROCM_DEB_URL=${ROCM_DEB_URL:-"https://repo.radeon.com/amdgpu-install/7.2/ubuntu/noble/amdgpu-install_7.2.70200-1_all.deb"}
+DEB_FILENAME=$(basename "$ROCM_DEB_URL")
+VM_MAP_COUNT=${VM_MAP_COUNT:-2097152}
+SET_PERF_LEVEL=${SET_PERF_LEVEL:-"high"}
 
 # ----------------------- 2) 安裝 ROCm -----------------------
 install_rocm() {

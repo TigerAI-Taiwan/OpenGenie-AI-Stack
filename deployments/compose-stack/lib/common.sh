@@ -40,6 +40,8 @@ TIGER_LOG_PREFIX="${TIGER_LOG_PREFIX:-TigerAI}"
 LOG()   { echo -e "${GREEN}[${TIGER_LOG_PREFIX} INFO]${NC} $*"; }
 WARN()  { echo -e "${YELLOW}[${TIGER_LOG_PREFIX} WARN]${NC} $*" >&2; }
 ERROR() { echo -e "${RED}[${TIGER_LOG_PREFIX} ERROR]${NC} $*" >&2; exit 1; }
+# Used by the host-setup installers to report an idempotent no-op.
+SKIP()  { echo -e "${BLUE}[${TIGER_LOG_PREFIX} SKIP]${NC} $*"; }
 
 # Aliases used by the pre-merge deploy.sh scripts, kept so the module bodies
 # do not all need rewriting. Same implementation, so the format stays uniform.

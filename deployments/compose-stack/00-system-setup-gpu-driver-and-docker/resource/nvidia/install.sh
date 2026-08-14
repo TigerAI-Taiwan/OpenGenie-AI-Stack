@@ -15,9 +15,15 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 # <module>/resource/nvidia/<this file>  ->  ../.. is the module directory.
 TIGER_MODULE_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd -P)"
-TIGER_LOG_PREFIX="TigerAI System Setup"
+TIGER_LOG_PREFIX="TigerAI Foundation (NVIDIA)"
 # shellcheck source=../../../lib/common.sh
 source "${TIGER_MODULE_DIR}/../lib/common.sh"
+
+# Fallback defaults
+NVIDIA_DRIVER_PACKAGE=${NVIDIA_DRIVER_PACKAGE:-"nvidia-driver-580-open"}
+NVIDIA_DKMS_PACKAGE=${NVIDIA_DKMS_PACKAGE:-"nvidia-dkms-580"}
+NVIDIA_UTILS_PACKAGE=${NVIDIA_UTILS_PACKAGE:-"nvidia-utils-580"}
+VM_MAP_COUNT=${VM_MAP_COUNT:-2097152}
 
 # --- 1. NVIDIA Driver (PPA) ---
 install_nvidia() {
