@@ -56,15 +56,8 @@ services:
     networks:
       - ai_stack_net
     # GPU access is intentionally absent here — see the warning in the header.
-    #
-    # A named volume on every platform. Only the arm64 stack used one before;
-    # amd and nvidia bound the host path /var/lib/ollama.
-    #
-    # WARNING: this is a data-location change for amd and nvidia. An existing
-    # machine will start with an empty model store and re-download everything
-    # unless the models are moved first. docs/MIGRATION.md has the procedure.
     volumes:
-      - ollama_data:/root/.ollama
+      - /var/lib/ollama:/root/.ollama
     environment:
       - OLLAMA_FLASH_ATTENTION=${OLLAMA_FLASH_ATTENTION:-1}
       - OLLAMA_NUM_PARALLEL=${OLLAMA_NUM_PARALLEL:-2}
@@ -272,5 +265,4 @@ networks:
     external: true
 
 volumes:
-  ollama_data:
   openwebui_data:

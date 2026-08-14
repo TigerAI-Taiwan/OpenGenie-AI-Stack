@@ -7,11 +7,6 @@
 #      not nvidia's deploy.resources.reservations.
 #   2. OLLAMA_VULKAN=1 — amd only.
 #
-# The ollama data volume is NOT overridden here. Base's named volume
-# (ollama_data) is now used on every platform; the amd stack previously bound
-# the host path /var/lib/ollama. Existing machines must move their models —
-# see docs/MIGRATION.md.
-#
 # With list syntax, compose merges `environment` by variable name and
 # `volumes` by target, so only the entries being added or replaced are listed.
 # =====================================================================

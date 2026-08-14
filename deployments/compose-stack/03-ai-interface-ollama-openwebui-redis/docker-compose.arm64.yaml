@@ -6,8 +6,7 @@
 #   1. ollama GPU access: deploy.resources.reservations (driver: nvidia).
 #
 # The only difference from the nvidia overlay is that redis carries no
-# `platform: linux/amd64` here, and that the ollama volume is left as base
-# declares it — the arm64 stack already used the named volume.
+# `platform: linux/amd64` here.
 # =====================================================================
 services:
   ollama:

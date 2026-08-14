@@ -13,7 +13,7 @@ machine, and two of them stop services from working until you act:
 
 | # | Change | Action required |
 |:-:|---|---|
-| 1 | Ollama moves to a named volume | Copy your models, or they re-download |
+| 1 | Ollama model store is a host bind mount | ARM64: copy models back from the named volume |
 | 2 | OpenWebUI worker containers removed | Set `OWUI_UVICORN_WORKERS` |
 | 3 | Lemonade is AMD-only | NVIDIA/ARM64: uninstall the systemd units |
 | 4 | **MQTT requires authentication** | **Set `MQTT_USERNAME` / `MQTT_PASSWORD` or MQTT stops working** |
@@ -31,7 +31,7 @@ straight down the page.
 # 1. Back up first. Do not skip this.
 sudo bash deployments/compose-stack/08-backup-recovery/resource/_shared/backup-tigerai.sh
 
-# 2. Move your Ollama models (amd and nvidia only — see below)
+# 2. Check where your Ollama models are (see section 1)
 # 3. Merge your .env
 # 4. Redeploy
 sudo -E bash deployments/tiger-deploy.sh
@@ -42,50 +42,74 @@ The rest of this document explains what changed and why each step matters.
 
 ---
 
-## 1. Ollama models move to a named volume
+## 1. Ollama model store — check where yours is
 
-**Affects: AMD and NVIDIA. ARM64 users are already on the new layout.**
+**Affects: ARM64 always. AMD and NVIDIA only if you already upgraded to an
+early v3 build.**
 
-The AMD and NVIDIA stacks bind-mounted the host directory `/var/lib/ollama`
-into the Ollama container. All three platforms now use a Docker named volume,
-`ollama_data`, which is what the ARM64 stack already did.
+All three platforms now bind-mount the host directory `/var/lib/ollama`. AMD and
+NVIDIA always used that path. ARM64 used a Docker named volume, and an early
+v3.0.0 build briefly moved every platform onto the named volume before this was
+reverted.
 
-Nothing is deleted by the upgrade, but the container will come up pointing at
-an **empty** store and re-download every model on first use. If you have tens
-of gigabytes of models, copy them across first.
+So your models are in one of two places. **Check before redeploying** — guessing
+wrong costs either a multi-gigabyte re-download or two copies on disk:
+
+```bash
+# Is there a named volume, and does it hold anything?
+docker volume ls | grep ollama_data
+docker run --rm -v 03-ai-interface-ollama-openwebui-redis_ollama_data:/d \
+  alpine du -sh /d 2>/dev/null || echo "no named volume"
+
+# What about the host path?
+sudo du -sh /var/lib/ollama 2>/dev/null || echo "no host path"
+```
+
+**If `/var/lib/ollama` holds your models** (typical for AMD and NVIDIA that
+never ran an early v3 build) — nothing to do. Skip to section 2.
+
+**If the named volume holds your models** (ARM64, or anyone who ran an early
+v3 build) — copy them back to the host path first:
 
 ```bash
 # Stop the AI interface so nothing writes during the copy
 sudo -E bash deployments/compose-stack/03-ai-interface-ollama-openwebui-redis/deploy.sh down
 
-# Create the named volume and copy the old contents into it
-docker volume create 03-ai-interface-ollama-openwebui-redis_ollama_data
+sudo mkdir -p /var/lib/ollama
 docker run --rm \
-  -v /var/lib/ollama:/from:ro \
-  -v 03-ai-interface-ollama-openwebui-redis_ollama_data:/to \
+  -v 03-ai-interface-ollama-openwebui-redis_ollama_data:/from:ro \
+  -v /var/lib/ollama:/to \
   alpine sh -c 'cd /from && cp -a . /to/'
 
 # Verify: this should list your models
-docker run --rm \
-  -v 03-ai-interface-ollama-openwebui-redis_ollama_data:/data \
-  alpine ls /data/models/manifests/registry.ollama.ai/library
+sudo ls /var/lib/ollama/models/manifests/registry.ollama.ai/library
 ```
 
-The volume name is `<module directory>_<volume>`, because Compose prefixes
-named volumes with the project name and the project name comes from the module
-directory. If you renamed the module directory, adjust accordingly.
+The named volume is left untouched. Remove it once the new setup works:
 
-`/var/lib/ollama` is left untouched. Delete it once you have confirmed the new
-setup works.
+```bash
+docker volume rm 03-ai-interface-ollama-openwebui-redis_ollama_data
+```
 
-If you would rather not move anything, keep the old behaviour by adding this to
+> The volume name is `<module directory>_<volume>`, because Compose prefixes
+> named volumes with the project name and the project name comes from the module
+> directory.
+
+If you would rather keep the named volume, override the mount in
 `deployments/compose-stack/03-ai-interface-ollama-openwebui-redis/docker-compose.<your platform>.yaml`:
 
 ```yaml
 services:
   ollama:
     volumes:
-      - /var/lib/ollama:/root/.ollama
+      - ollama_data:/root/.ollama
+```
+
+and re-add the top-level declaration, which the base file no longer carries:
+
+```yaml
+volumes:
+  ollama_data:
 ```
 
 ---
