@@ -37,6 +37,29 @@ usage() {
 [ $# -eq 0 ] && usage
 ACTION="$1"
 
+# Fallback defaults
+MODELS_DIR=${MODELS_DIR:-/home/wrt/TigerAI/models}
+LEMONADE_API_KEY=${LEMONADE_API_KEY:-}
+TIGER_CPU_THREADS=${TIGER_CPU_THREADS:-16}
+GGML_VULKAN_DEVICE_EDU=${GGML_VULKAN_DEVICE_EDU:-0}
+GGML_VULKAN_DEVICE_RAG=${GGML_VULKAN_DEVICE_RAG:-0}
+GGML_VULKAN_DEVICE_EMBED=${GGML_VULKAN_DEVICE_EMBED:-0}
+# Looked up on the host: the compose group_add entries fall back to 44/992,
+# which is wrong wherever the distro numbers these groups differently — the
+# containers then cannot reach /dev/dri.
+TIGER_RENDER_GID=${TIGER_RENDER_GID:-$(getent group render 2>/dev/null | cut -d: -f3 || echo "992")}
+TIGER_VIDEO_GID=${TIGER_VIDEO_GID:-$(getent group video  2>/dev/null | cut -d: -f3 || echo "44")}
+export MODELS_DIR LEMONADE_API_KEY TIGER_CPU_THREADS
+export GGML_VULKAN_DEVICE_EDU GGML_VULKAN_DEVICE_RAG GGML_VULKAN_DEVICE_EMBED
+export TIGER_RENDER_GID TIGER_VIDEO_GID
+
+prep_dirs() {
+    REAL_USER="${SUDO_USER:-${USER:-wrt}}"
+    sudo mkdir -p "$MODELS_DIR"
+    sudo chown -R "$REAL_USER":"$REAL_USER" "$MODELS_DIR"
+}
+
+prep_dirs
 ensure_network
 
 case "$ACTION" in
