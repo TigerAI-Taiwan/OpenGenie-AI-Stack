@@ -33,13 +33,37 @@
 # The `../..` below is a hard-coded depth.
 # =====================================================================
 
+# Guard: this file only defines functions. Running it directly would exit 0
+# having monitored nothing — the exact failure the header warns about.
+if [ "${BASH_SOURCE[0]}" = "$0" ]; then
+    echo "[TigerAI Monitor ERROR] $(basename "${BASH_SOURCE[0]}") must be sourced by a platform entry point, not run directly." >&2
+    exit 1
+fi
+
 # --- 0) Configuration ---
+# Load order matches lib/common.sh's tiger_load_env. ${BASH_SOURCE[0]} points at
+# THIS file even when sourced, so the paths stay independent of the entry point.
+#
+# WARNING: keep all three details. The env files are gitignored so the trailing
+# CR must be stripped; `source` rather than `export $(... | xargs)`, which
+# mangles values with whitespace or quotes; and a temp file rather than
+# `source <(sed ...)`, which loads nothing under bash 3.2.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 # <module>/resource/_shared/<this file>  ->  ../.. is the module directory.
 TIGER_MODULE_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd -P)"
-TIGER_LOG_PREFIX="TigerAI Monitor"
-# shellcheck source=../../../lib/common.sh
-source "${TIGER_MODULE_DIR}/../lib/common.sh"
+TIGER_STACK_DIR="$(cd "${TIGER_MODULE_DIR}/.." && pwd -P)"
+
+set -a
+for _envfile in "${TIGER_STACK_DIR}/tiger-tuning.env" "${TIGER_STACK_DIR}/.env" "${TIGER_MODULE_DIR}/.env"; do
+    if [ -f "$_envfile" ]; then
+        _tmp=$(mktemp)
+        sed 's/\r$//' "$_envfile" > "$_tmp"
+        # shellcheck disable=SC1090
+        source "$_tmp"
+        rm -f "$_tmp"
+    fi
+done
+set +a
 
 MQTT_BROKER=${MQTT_BROKER:-"localhost"}
 # The broker requires authentication. These must match what the mosquitto
@@ -55,9 +79,24 @@ TARGET_HOST=${TARGET_HOST:-"localhost"}
 HEARTBEAT_INTERVAL=${HEARTBEAT_INTERVAL:-60}
 PROBE_TIMEOUT=${PROBE_TIMEOUT:-5}
 
-# WARN / ERROR and the colors come from lib/common.sh. LOG is redefined here
-# to prefix the target host.
-LOG(){ echo -e "${GREEN}[${TIGER_LOG_PREFIX} INFO]${NC} (Target: $TARGET_HOST) $*"; }
+# --- Logging -----------------------------------------------------------------
+# WARNING: deliberately NOT lib/common.sh. This body runs as a long-lived
+# systemd service, and common.sh's ERR trap would take the whole monitor down on
+# the first failed probe.
+if [ ! -f "${TIGER_STACK_DIR}/lib/log.sh" ]; then
+    echo "[TigerAI Monitor ERROR] not found: ${TIGER_STACK_DIR}/lib/log.sh" >&2
+    exit 1
+fi
+# shellcheck source-path=SCRIPTDIR/../../../lib
+# shellcheck source=log.sh
+source "${TIGER_STACK_DIR}/lib/log.sh"
+# shellcheck disable=SC2034  # read by lib/log.sh's LOG/WARN/ERROR
+TIGER_LOG_PREFIX="TigerAI Monitor"
+
+# Must come after TARGET_HOST is settled — expanded on assignment. Changed from
+# the old hand-rolled LOG(): WARN now carries the target and goes to stderr.
+# shellcheck disable=SC2034  # read by lib/log.sh's LOG/WARN/ERROR
+TIGER_LOG_CONTEXT="(Target: ${TARGET_HOST})"
 
 # Check dependencies
 if ! command -v mosquitto_pub &>/dev/null; then
@@ -202,13 +241,9 @@ case "${1:-}" in
         ;;
     install)
         LOG "Installing as a systemd service..."
-        # The unit must carry TIGER_PLATFORM itself.
-        #
-        # Before the stack merge the platform was implied by which of the three
-        # stack directories this script lived in, so the unit needed no
-        # environment. lib/common.sh now requires TIGER_PLATFORM and refuses to
-        # guess, and systemd starts services with a nearly empty environment —
-        # a unit without it would fail on every start and restart forever.
+        # No Environment=TIGER_PLATFORM: this body no longer sources
+        # lib/common.sh, and ExecStart points at resource/<platform>/
+        # tiger-monitor.sh, which exports the platform itself.
         #
         # ExecStart must be the PLATFORM ENTRY POINT, not this shared body.
         # TIGER_MONITOR_ENTRY is set by the entry point before it sources this
@@ -223,7 +258,6 @@ After=network.target mosquitto.service
 [Service]
 Type=simple
 User=root
-Environment=TIGER_PLATFORM=${TIGER_PLATFORM}
 WorkingDirectory=$(dirname "$entry")
 ExecStart=${entry} start
 Restart=always
@@ -235,10 +269,6 @@ EOF
         sudo systemctl daemon-reload
         sudo systemctl enable --now tiger-monitor.service
         LOG "Systemd service installed and started."
-        # The baked-in value does not follow the machine — see the same note in
-        # 08-backup-recovery/resource/_shared/setup-cron.sh.
-        WARN "TIGER_PLATFORM=${TIGER_PLATFORM} is baked into the unit file."
-        WARN "If the platform ever changes, re-run '$0 install'."
         ;;
     *)
         echo "Usage: $0 {once | start | install}"

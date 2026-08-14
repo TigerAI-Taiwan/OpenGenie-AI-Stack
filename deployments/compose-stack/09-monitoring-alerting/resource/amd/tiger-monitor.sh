@@ -11,6 +11,8 @@
 # hard-coded depth.
 # =====================================================================
 
+# Load bearing: the systemd unit sets no Environment=, so this is the only
+# place the platform gets set for the service. Do not remove.
 export TIGER_PLATFORM=amd
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"

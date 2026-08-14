@@ -21,6 +21,18 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MODULE_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 STACK_DIR="$(cd "$MODULE_DIR/.." && pwd)"
 
+# LOG/WARN/ERROR and the colors come from lib/log.sh, which is side-effect free
+# (no set, no trap, no TIGER_PLATFORM) — so this file's "does not source
+# lib/common.sh" design is unaffected. Loaded before the env cascade so the
+# errors below have ERROR available. Never fall back to built-ins.
+if [ ! -f "$STACK_DIR/lib/log.sh" ]; then
+    echo "[TigerAI ERROR] not found: $STACK_DIR/lib/log.sh (SCRIPT_DIR=$SCRIPT_DIR)" >&2
+    exit 1
+fi
+# shellcheck source-path=SCRIPTDIR/../../../lib
+# shellcheck source=log.sh
+source "$STACK_DIR/lib/log.sh"
+
 # Load env（後者覆蓋前者），順序與 lib/common.sh 的 tiger_load_env 一致：
 #   <stack>/tiger-tuning.env → <stack>/.env → <module>/.env
 # ⚠️ 這三個檔都是 .gitignore 的，.gitattributes 的 EOL 正規化管不到，所以仍要
@@ -57,11 +69,9 @@ BACKUP_PATH="${BACKUP_ROOT}/${DATE}"
 MANIFEST="${BACKUP_PATH}/data-paths.manifest"
 INCOMPLETE=0
 
-LOG_PREFIX="TigerAI Backup"
-GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; BLUE='\033[0;34m'; NC='\033[0m'
-LOG(){ echo -e "${GREEN}[$LOG_PREFIX INFO]${NC} $*"; }
-WARN(){ echo -e "${YELLOW}[$LOG_PREFIX WARN]${NC} $*"; }
-ERROR(){ echo -e "${RED}[$LOG_PREFIX ERROR]${NC} $*"; exit 1; }
+# The prefix is evaluated at call time, so setting it after the source works.
+# Kept after the env cascade so this file's value still beats any .env.
+TIGER_LOG_PREFIX="TigerAI Backup"
 
 # Everything written below is operational data: globals.sql.gz carries every role's
 # SCRAM password hash, and the db_*.sql.gz / data_*.tar.gz next to it carry the
@@ -204,6 +214,16 @@ if [ "$INCOMPLETE" -eq 1 ]; then
     WARN "Backup finished but is INCOMPLETE — review the warnings above."
 else
     LOG " Backup Process Finished Successfully."
+fi
+
+# The verdict must be on stdout. WARN goes to stderr, so `backup-tigerai.sh
+# 2>/dev/null` swallows every INCOMPLETE warning and leaves only
+# "Backup Location: ..." on screen — it reads as a clean success, with just
+# rc=1 giving it away. Details stay on stderr; rc is still the gate.
+if [ "$INCOMPLETE" -eq 1 ]; then
+    LOG "Result: INCOMPLETE — one or more items failed; see the warnings on stderr (exit code 1)"
+else
+    LOG "Result: OK"
 fi
 LOG "Backup Location: ${BACKUP_PATH}"
 

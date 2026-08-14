@@ -12,6 +12,8 @@
 
 # 這支腳本會被 crontab 直接叫起來（環境裡沒有 master-deploy.sh 的變數），
 # 而「選到哪個平台的入口檔」本身就已經決定了平台，所以這裡直接指定。
+# Load bearing: the cron entry sets no TIGER_PLATFORM, so this is the only
+# place vram-purge-common.sh gets it. Do not remove.
 export TIGER_PLATFORM=amd
 
 TIGER_PURGE_ENTRY="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/$(basename "${BASH_SOURCE[0]}")"

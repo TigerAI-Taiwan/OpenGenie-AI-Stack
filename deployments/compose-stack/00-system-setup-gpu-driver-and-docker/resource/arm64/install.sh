@@ -58,13 +58,17 @@ NVIDIA_DKMS_PACKAGE=${NVIDIA_DKMS_PACKAGE:-"nvidia-dkms-580"}
 NVIDIA_UTILS_PACKAGE=${NVIDIA_UTILS_PACKAGE:-"nvidia-utils-580"}
 VM_MAP_COUNT=${VM_MAP_COUNT:-2097152}
 
-LOG_PREFIX="TigerAI Foundation (ARM64-NVIDIA)"
-# YELLOW 在搬移時拿掉了：本檔沒有 WARN()，它自始至終沒有被引用過（shellcheck SC2034）。
-# 若日後加了 WARN()，把它加回來即可。amd/install.sh 有 WARN()，所以那邊保留 YELLOW。
-GREEN='\033[0;32m'; RED='\033[0;31m'; BLUE='\033[0;34m'; NC='\033[0m'
-LOG(){ echo -e "${GREEN}[$LOG_PREFIX INFO]${NC} $*"; }
-SKIP(){ echo -e "${BLUE}[$LOG_PREFIX SKIP]${NC} $*"; }
-ERROR(){ echo -e "${RED}[$LOG_PREFIX ERROR]${NC} $*"; exit 1; }
+# log.sh and not lib/common.sh: this file also runs standalone
+# (sudo bash resource/arm64/install.sh), where TIGER_PLATFORM is unset and
+# common.sh's ERR trap is unwanted. Paths reuse _STACK_DIR from the env load.
+if [ ! -f "${_STACK_DIR}/lib/log.sh" ]; then
+    echo "[TigerAI ERROR] not found: ${_STACK_DIR}/lib/log.sh (_SELF_DIR=${_SELF_DIR})" >&2
+    exit 1
+fi
+# shellcheck source-path=SCRIPTDIR/../../../lib
+# shellcheck source=log.sh
+source "${_STACK_DIR}/lib/log.sh"
+TIGER_LOG_PREFIX="TigerAI Foundation (ARM64-NVIDIA)"
 
 # --- 1. NVIDIA Driver (PPA) ---
 install_nvidia() {

@@ -103,11 +103,17 @@ SET_PERF_LEVEL=${SET_PERF_LEVEL:-"high"}
 # 為它新增一個變數就得同步三份共用區。要調的人直接改 /etc/sysctl.conf 即可。
 SWAPPINESS=10
 
-GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; BLUE='\033[0;34m'; NC='\033[0m'
-LOG(){ echo -e "${GREEN}[TigerAI INFO]${NC} $*"; }
-SKIP(){ echo -e "${BLUE}[TigerAI SKIP]${NC} $*"; }
-WARN(){ echo -e "${YELLOW}[TigerAI WARN]${NC} $*"; }
-ERROR(){ echo -e "${RED}[TigerAI ERROR]${NC} $*"; exit 1; }
+# log.sh and not lib/common.sh: this file also runs standalone
+# (sudo bash resource/amd/install.sh), where TIGER_PLATFORM is unset and
+# common.sh's ERR trap is unwanted. Paths reuse _STACK_DIR from the env load.
+if [ ! -f "${_STACK_DIR}/lib/log.sh" ]; then
+    echo "[TigerAI ERROR] not found: ${_STACK_DIR}/lib/log.sh (_SELF_DIR=${_SELF_DIR})" >&2
+    exit 1
+fi
+# shellcheck source-path=SCRIPTDIR/../../../lib
+# shellcheck source=log.sh
+source "${_STACK_DIR}/lib/log.sh"
+TIGER_LOG_PREFIX="TigerAI Foundation (AMD)"
 
 # ===================== [1/5] 安裝 ROCm =====================
 # 冪等判準：「上一輪跑到了安裝 rocm 那一步」＋「執行中的 kernel 有 amdgpu module」。

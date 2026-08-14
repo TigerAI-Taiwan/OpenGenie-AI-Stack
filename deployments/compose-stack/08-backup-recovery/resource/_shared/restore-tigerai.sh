@@ -22,6 +22,18 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MODULE_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 STACK_DIR="$(cd "$MODULE_DIR/.." && pwd)"
 
+# LOG/WARN/ERROR and the colors come from lib/log.sh, which is side-effect free
+# (no set, no trap, no TIGER_PLATFORM) — so this file's "does not source
+# lib/common.sh" design is unaffected. Loaded before the env cascade so the
+# errors below have ERROR available. Never fall back to built-ins.
+if [ ! -f "$STACK_DIR/lib/log.sh" ]; then
+    echo "[TigerAI ERROR] not found: $STACK_DIR/lib/log.sh (SCRIPT_DIR=$SCRIPT_DIR)" >&2
+    exit 1
+fi
+# shellcheck source-path=SCRIPTDIR/../../../lib
+# shellcheck source=log.sh
+source "$STACK_DIR/lib/log.sh"
+
 # Load env（後者覆蓋前者），順序與 lib/common.sh 的 tiger_load_env 一致：
 #   <stack>/tiger-tuning.env → <stack>/.env → <module>/.env
 # ⚠️ CRLF 與 `export $(… | xargs)` 的坑同 backup-tigerai.sh，說明見該檔。
@@ -54,11 +66,12 @@ DATA_DIRS=${DATA_DIRS:-"$BASE_DIR"}
 
 BACKUP_ROOT=${BACKUP_ROOT:-"/opt/tigerai/backups"}
 
-LOG_PREFIX="TigerAI Restore"
-GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; BLUE='\033[0;34m'; NC='\033[0m'
-LOG(){ echo -e "${GREEN}[$LOG_PREFIX INFO]${NC} $*"; }
-WARN(){ echo -e "${YELLOW}[$LOG_PREFIX WARN]${NC} $*"; }
-ERROR(){ echo -e "${RED}[$LOG_PREFIX ERROR]${NC} $*"; exit 1; }
+# The prefix is evaluated at call time, so setting it after the source works.
+# Kept after the env cascade so this file's value still beats any .env.
+# on_exit() / report_abort() also read this directly (hand-written echoes, not
+# LOG/WARN/ERROR), so only this one name is used — keeping a LOG_PREFIX alias
+# too would let the two drift apart.
+TIGER_LOG_PREFIX="TigerAI Restore"
 
 # Confirmation gate for destructive actions. Skipped when ASSUME_YES=1 or -y is
 # passed (for automation); aborts on a non-interactive stdin unless bypassed.
@@ -379,7 +392,7 @@ on_exit() {
         verify_pg_password
         if [ "${#STOPPED_SERVICES[@]}" -gt 0 ]; then
             if ! start_pg_clients; then
-                echo -e "${RED}[$LOG_PREFIX ERROR]${NC} Restore finished but some containers failed to start." >&2
+                echo -e "${RED}[$TIGER_LOG_PREFIX ERROR]${NC} Restore finished but some containers failed to start." >&2
                 print_restart_hint >&2
                 exit 1
             fi
@@ -389,7 +402,7 @@ on_exit() {
     [ "${#DB_TARGETS[@]}" -gt 0 ] && report_abort >&2
     verify_pg_password >&2
     if [ "${#STOPPED_SERVICES[@]}" -gt 0 ]; then
-        echo -e "${YELLOW}[$LOG_PREFIX WARN]${NC} The containers below are still STOPPED — restore failed, so they are left down on purpose." >&2
+        echo -e "${YELLOW}[$TIGER_LOG_PREFIX WARN]${NC} The containers below are still STOPPED — restore failed, so they are left down on purpose." >&2
         print_restart_hint >&2
     fi
     exit "$rc"

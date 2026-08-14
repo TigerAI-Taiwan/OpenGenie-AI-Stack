@@ -22,6 +22,11 @@
 #     "already migrated" and SKIPS — leaving your legacy data behind in tigerai.
 #     Always migrate first, then redeploy.
 # Usage: sudo bash ./db-rename-migration.sh [-y]   (-y / ASSUME_YES=1 skips confirm)
+#
+# KEEPING A LOG: WARN and ERROR go to stderr, so redirect BOTH or every
+# warning — including the secret-key reminder and each abort reason — is
+# missing from the file:
+#     sudo bash ./n8n-db-rename-migration.sh 2>&1 | tee migration.log
 # =====================================================================
 
 set -eo pipefail
@@ -43,11 +48,22 @@ DST_DB="${DB_POSTGRESDB_DATABASE:-n8n}"            # dedicated target DB
 APP_DIR="$SCRIPT_DIR/../04-automation-n8n"         # app compose dir (for force-stop)
 APP_MATCH='n8n-main|n8n-worker'                    # container-name match (incl. scaled workers)
 
-LOG_PREFIX="TigerAI n8n migrate"
-GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; NC='\033[0m'
-LOG(){ echo -e "${GREEN}[$LOG_PREFIX INFO]${NC} $*"; }
-WARN(){ echo -e "${YELLOW}[$LOG_PREFIX WARN]${NC} $*"; }
-ERROR(){ echo -e "${RED}[$LOG_PREFIX ERROR]${NC} $*"; exit 1; }
+# Logging comes from lib/log.sh. Not lib/common.sh: this is a one-shot rescue
+# tool an operator may run from anywhere, so neither the imposed ERR trap nor
+# the TIGER_PLATFORM requirement is acceptable.
+# Depth: migrations/ sits directly under <stack>/, so this is a single `..`
+# (resource/ scripts use ../../.. — do not copy that here).
+STACK_DIR="$(cd "${SCRIPT_DIR}/.." && pwd -P)"
+if [ ! -f "${STACK_DIR}/lib/log.sh" ]; then
+    echo "[TigerAI ERROR] not found: ${STACK_DIR}/lib/log.sh (SCRIPT_DIR=${SCRIPT_DIR})" >&2
+    exit 1
+fi
+# shellcheck source-path=SCRIPTDIR/../lib
+# shellcheck source=log.sh
+source "${STACK_DIR}/lib/log.sh"
+# NOTE: WARN now goes to stderr (it used stdout before) — see the tee note in
+# the usage header. ERROR still exits 1.
+TIGER_LOG_PREFIX="TigerAI n8n migrate"
 
 # Confirmation gate for destructive actions (mirrors restore-tigerai.sh).
 ASSUME_YES=${ASSUME_YES:-0}

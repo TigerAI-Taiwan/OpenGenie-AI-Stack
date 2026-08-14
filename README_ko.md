@@ -122,6 +122,7 @@ deployments/
 ├── tiger-deploy.sh             # 하드웨어 자동 감지
 └── compose-stack/
     ├── lib/common.sh           # 공유 셸 라이브러리
+    ├── lib/log.sh              # 로깅과 색상 (부작용 없음)
     ├── master-deploy.sh
     ├── .env.{amd,nvidia,arm64}.example
     ├── 00-pre-flight-advisor/

@@ -11,7 +11,8 @@ systemd 服務與 MQTT 認證都需要動作，其中 MQTT 未設定憑證會直
 ## What's Changed
 
 - 三份 compose stack 合併為 `deployments/compose-stack/`，以 `TIGER_PLATFORM` 選擇平台。
-- 新增 `lib/common.sh`：統一日誌、ERR trap、env 三層載入、`tiger_compose`、`tiger_res`。
+- 新增 `lib/common.sh`：ERR trap、env 三層載入、`tiger_compose`、`tiger_res`。
+- 新增 `lib/log.sh`：`LOG`/`SKIP`/`WARN`/`ERROR` 與顏色的唯一來源。零副作用（不 `set`、不裝 trap、不要求 `TIGER_PLATFORM`），因此 host-side 腳本（`install.sh`、backup/restore、`setup-cron.sh`、`migrations/*`）與 `lib/common.sh` 共用同一份實作。
 - OpenWebUI 改為單一容器多 uvicorn worker，並新增一次性的 `openwebui-migrate`。
 - Lemonade 收斂為 AMD 專屬模組。
 - MQTT broker 啟用認證。

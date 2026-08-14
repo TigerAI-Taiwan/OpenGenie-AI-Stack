@@ -125,6 +125,7 @@ deployments/
 ├── tiger-deploy.sh             # 自動偵測硬體、匯出 TIGER_PLATFORM
 └── compose-stack/
     ├── lib/common.sh           # 共用 shell 函式庫
+    ├── lib/log.sh              # 日誌與顏色（零副作用）
     ├── master-deploy.sh
     ├── .env.{amd,nvidia,arm64}.example
     ├── 00-pre-flight-advisor/

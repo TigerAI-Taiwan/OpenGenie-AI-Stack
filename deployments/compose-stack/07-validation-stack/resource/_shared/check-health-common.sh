@@ -33,28 +33,66 @@
 # The `../..` below is a hard-coded depth.
 # =====================================================================
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-# <module>/resource/_shared/<this file>  ->  ../.. is the module directory.
-TIGER_MODULE_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd -P)"
-TIGER_LOG_PREFIX="TigerAI Validator"
-# shellcheck source=../../../lib/common.sh
-source "${TIGER_MODULE_DIR}/../lib/common.sh"
-
 # Guard: this file only defines a function. Running it directly would exit 0
 # having checked nothing, which reads exactly like a passing health check.
+# Hand-written rather than ERROR(), because logging is not loaded yet.
 if [ "${BASH_SOURCE[0]}" = "$0" ]; then
-    ERROR "check-health-common.sh must be sourced by a platform entry point, not run directly."
+    echo "[TigerAI Validator ERROR] $(basename "${BASH_SOURCE[0]}") must be sourced by a platform entry point, not run directly." >&2
+    exit 1
 fi
+
+set -eo pipefail
+
+# --- 0) Environment ----------------------------------------------------------
+# Load order matches lib/common.sh's tiger_load_env. ${BASH_SOURCE[0]} points at
+# THIS file even when sourced, so the paths stay independent of the entry point.
+#
+# WARNING: keep all three details. The env files are gitignored so
+# .gitattributes never normalizes them and the trailing CR must be stripped
+# (PG_USER=adm\r makes `pg_isready` fail forever); `source` rather than
+# `export $(... | xargs)`, which mangles values with whitespace or quotes; and a
+# temp file rather than `source <(sed ...)`, which loads nothing under bash 3.2.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+MODULE_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd -P)"
+STACK_DIR="$(cd "${MODULE_DIR}/.." && pwd -P)"
+
+set -a
+for _envfile in "${STACK_DIR}/tiger-tuning.env" "${STACK_DIR}/.env" "${MODULE_DIR}/.env"; do
+    if [ -f "$_envfile" ]; then
+        _tmp=$(mktemp)
+        sed 's/\r$//' "$_envfile" > "$_tmp"
+        # shellcheck disable=SC1090
+        source "$_tmp"
+        rm -f "$_tmp"
+    fi
+done
+set +a
 
 PG_USER="${PG_USER:-adm}"
 TARGET_HOST=${TARGET_HOST:-"localhost"}
 
-# LOG / WARN / ERROR come from lib/common.sh. This module's LOG additionally
-# prefixes the target host, so it is redefined here — and unlike common.sh's
-# version, ERROR here must NOT exit: the validator is expected to report every
-# failing check and keep going.
-LOG()   { echo -e "${GREEN}[${TIGER_LOG_PREFIX} INFO]${NC} (Target: $TARGET_HOST) $*"; }
-ERROR() { echo -e "${RED}[${TIGER_LOG_PREFIX} ERROR]${NC} $*"; }
+# --- 1) Logging --------------------------------------------------------------
+# log.sh and not lib/common.sh: common.sh's ERR trap would abandon the run on
+# the first failed check, and its TIGER_PLATFORM requirement would break
+# `bash check-health.sh` run directly by a user.
+if [ ! -f "${STACK_DIR}/lib/log.sh" ]; then
+    echo "[TigerAI Validator ERROR] not found: ${STACK_DIR}/lib/log.sh (SCRIPT_DIR=${SCRIPT_DIR})" >&2
+    exit 1
+fi
+# shellcheck source-path=SCRIPTDIR/../../../lib
+# shellcheck source=log.sh
+source "${STACK_DIR}/lib/log.sh"
+
+# shellcheck disable=SC2034  # read by lib/log.sh's LOG/WARN/ERROR
+TIGER_LOG_PREFIX="TigerAI Validator"
+# Must come after TARGET_HOST is settled — expanded on assignment.
+# shellcheck disable=SC2034  # read by lib/log.sh's LOG/WARN/ERROR
+TIGER_LOG_CONTEXT="(Target: ${TARGET_HOST})"
+
+# WARNING: log.sh's ERROR() exits 1, unlike the print-and-continue ERROR this
+# file used to define. No ERROR call site remains below, so that is safe. For a
+# non-fatal error message add a separate FAIL() — the validator must finish
+# every phase.
 
 check_endpoint() {
     local name=$1

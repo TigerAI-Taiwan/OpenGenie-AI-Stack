@@ -128,6 +128,7 @@ deployments/
 ├── tiger-deploy.sh             # ハードウェア自動検出
 └── compose-stack/
     ├── lib/common.sh           # 共有シェルライブラリ
+    ├── lib/log.sh              # ログと色（副作用なし）
     ├── master-deploy.sh
     ├── .env.{amd,nvidia,arm64}.example
     ├── 00-pre-flight-advisor/

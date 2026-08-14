@@ -9,7 +9,8 @@
 #     source "${SCRIPT_DIR}/../lib/common.sh"
 #
 # After sourcing:
-#     LOG / WARN / ERROR         uniform logging (ERROR exits 1)
+#     LOG / WARN / ERROR / SKIP  uniform logging (ERROR exits 1)
+#                                implemented in lib/log.sh; this file sources it
 #     ensure_network [name]      create ai_stack_net (idempotent)
 #     tiger_compose <args...>    docker compose with -f overlays + --env-file
 #     tiger_res <name>           resource lookup (platform -> _shared)
@@ -18,6 +19,11 @@
 #
 # This file sets `set -Eeo pipefail` and an ERR trap for the sourcing
 # shell, so module deploy.sh scripts must not set them again.
+#
+# Logging lives in lib/log.sh because this file's three side effects (the
+# `set`, the trap, the TIGER_PLATFORM requirement) are wanted by module
+# deploy.sh scripts but not by host-side scripts that must run standalone.
+# This file is just one of log.sh's consumers.
 # =====================================================================
 
 # --- 0) Guard: this file may only be sourced ---------------------------------
@@ -29,25 +35,22 @@ fi
 set -Eeo pipefail
 
 # --- 1) Colors and logging ---------------------------------------------------
-# The three stacks each defined these separately and inconsistently (arm64's
-# 01-infra had only GREEN and no ERROR()). One definition here; modules only
-# override TIGER_LOG_PREFIX.
-GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; BLUE='\033[0;34m'; CYAN='\033[0;36m'; NC='\033[0m'
+# Implementation is in lib/log.sh. This file adds the exports (relied on by
+# module deploy.sh and their children) and the TIGER_LOG_PREFIX default that
+# the ERR trap below expands. TIGER_LIB_DIR is computed here rather than in §3
+# because sourcing log.sh needs it.
+TIGER_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+if [ ! -f "${TIGER_LIB_DIR}/log.sh" ]; then
+    # Hand-written: no ERROR() yet. Never fall back to built-in definitions.
+    echo "[TigerAI ERROR] not found: ${TIGER_LIB_DIR}/log.sh — lib/ is incomplete, aborting." >&2
+    exit 1
+fi
+# shellcheck source-path=SCRIPTDIR
+# shellcheck source=log.sh
+source "${TIGER_LIB_DIR}/log.sh"
 export GREEN YELLOW RED BLUE CYAN NC
 
 TIGER_LOG_PREFIX="${TIGER_LOG_PREFIX:-TigerAI}"
-
-LOG()   { echo -e "${GREEN}[${TIGER_LOG_PREFIX} INFO]${NC} $*"; }
-WARN()  { echo -e "${YELLOW}[${TIGER_LOG_PREFIX} WARN]${NC} $*" >&2; }
-ERROR() { echo -e "${RED}[${TIGER_LOG_PREFIX} ERROR]${NC} $*" >&2; exit 1; }
-# Used by the host-setup installers to report an idempotent no-op.
-SKIP()  { echo -e "${BLUE}[${TIGER_LOG_PREFIX} SKIP]${NC} $*"; }
-
-# Aliases used by the pre-merge deploy.sh scripts, kept so the module bodies
-# do not all need rewriting. Same implementation, so the format stays uniform.
-LOG_INFO()  { LOG "$@"; }
-LOG_WARN()  { WARN "$@"; }
-LOG_ERROR() { ERROR "$@"; }
 
 # --- 2) ERR trap -------------------------------------------------------------
 # Print line number / command / exit code on failure. `set -E` above makes
@@ -62,7 +65,7 @@ trap 'rc=$?; echo -e "${RED}[${TIGER_LOG_PREFIX} FAILED]${NC} line $LINENO: \`$B
 
 # --- 3) Paths and platform ---------------------------------------------------
 # The parent of lib/ is the stack root (deployments/compose-stack).
-TIGER_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+# TIGER_LIB_DIR was already computed in §1, where sourcing log.sh needed it.
 TIGER_STACK_DIR="$(cd "${TIGER_LIB_DIR}/.." && pwd -P)"
 
 # The module directory is wherever the calling deploy.sh lives. A module may

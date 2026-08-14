@@ -7,6 +7,7 @@
 - Lemonade 收斂為 AMD 專屬模組。
 - MQTT broker 啟用認證。
 - 修正多項因三份副本漂移而長期存在的監控與健康檢查缺陷。
+- 新增 `lib/log.sh`：日誌與顏色收斂成單一來源，各腳本不再各自複製一份。
 - **破壞性變更**，升級請見 [遷移指南](MIGRATION.md)。
 - [Full Release Note](v3.0.0/RELEASE-NOTE.md)
 

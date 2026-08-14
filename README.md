@@ -130,6 +130,7 @@ deployments/
 ├── tiger-deploy.sh             # detects hardware, exports TIGER_PLATFORM
 └── compose-stack/
     ├── lib/common.sh           # shared shell library
+    ├── lib/log.sh              # logging and colors (side-effect free)
     ├── master-deploy.sh
     ├── .env.{amd,nvidia,arm64}.example
     ├── 00-pre-flight-advisor/
