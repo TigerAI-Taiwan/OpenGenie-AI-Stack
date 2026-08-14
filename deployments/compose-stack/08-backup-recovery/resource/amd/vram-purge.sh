@@ -1,49 +1,47 @@
 #!/usr/bin/env bash
 # =====================================================================
-# TigerAI VRAM Purge — amd entry point
+# TigerAI VRAM Purge & Service Refresh (Zero-Reboot Maintenance) — AMD ROCm/Vulkan entry
 # Path: deployments/compose-stack/08-backup-recovery/resource/amd/vram-purge.sh
 #
-# The entry point does three things and nothing else — path derivation, the
-# compose bridge and the Ollama restart all live in the shared body:
-#   1. export TIGER_PLATFORM=amd
-#   2. append this platform's extra restart step — amd is the only platform
-#      that deploys 06-ai-core-lemonade
-#   3. call tiger_vram_purge_main
-#
-# NOTE: this also fixes two long-standing defects in the pre-merge script,
-# which was byte-identical on all three platforms and did
-# `systemctl restart lemonade-{edu,rag}.service || true`:
-#   * On amd, Lemonade runs as containers, so those systemctl calls always
-#     failed and were swallowed — amd's Lemonade VRAM was never freed.
-#   * The list was hard-coded to edu and rag. edu is always up while embed and
-#     rag take turns, so restarting a fixed pair could start the service the
-#     current tiger-mode had deliberately stopped, and embed was never
-#     restarted at all.
-# Querying what is actually running avoids both: there is no list to get wrong.
-#
-# WARNING: must stay at the FIRST level of resource/amd/. The `../..` is a
-# hard-coded depth.
+# 入口只做三件事，其餘全部留在共用主體裡（不要把路徑推導、compose 橋接、
+# Ollama 重啟複製過來）：
+#   1. 指定自己的平台 + source resource/_shared/vram-purge-common.sh
+#   2. 追加本平台專屬的重啟項 —— 只有 amd 會部署 06-ai-core-lemonade
+#   3. 呼叫 tiger_vram_purge_main
 # =====================================================================
 
+# 這支腳本會被 crontab 直接叫起來（環境裡沒有 master-deploy.sh 的變數），
+# 而「選到哪個平台的入口檔」本身就已經決定了平台，所以這裡直接指定。
 export TIGER_PLATFORM=amd
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-TIGER_MODULE_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd -P)"
+TIGER_PURGE_ENTRY="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/$(basename "${BASH_SOURCE[0]}")"
+COMMON="$(dirname "$TIGER_PURGE_ENTRY")/../_shared/vram-purge-common.sh"
+if [ ! -f "$COMMON" ]; then
+    echo "[TigerAI Maintenance ERROR] 找不到共用主體：$COMMON" >&2
+    exit 1
+fi
 # shellcheck source=../_shared/vram-purge-common.sh
-source "${TIGER_MODULE_DIR}/resource/_shared/vram-purge-common.sh"
+source "$COMMON"
 
+# AMD-only: Lemonade AI core (06-ai-core-lemonade).
+# NOTE: Lemonade on AMD runs as Docker containers (lemonade-edu / rag / embed),
+#       NOT systemd services.
+# NOTE: tiger-mode keeps only two of the three running (edu+embed or edu+rag).
+#       A bare `docker compose restart` would restart "all stopped and running
+#       services" and thus wake the container tiger-mode deliberately stopped,
+#       so we restart only the services currently in the `running` state.
 purge_lemonade() {
-    LOG "Refreshing the phase 06 Lemonade engine..."
+    LOG "Refreshing Phase 06 Lemonade Engine..."
     local running
-    running="$(tiger_purge_compose 06-ai-core-lemonade ps --services --status running 2>/dev/null || true)"
-    if [ -z "$running" ]; then
-        WARN "No Lemonade services are running; nothing to refresh."
-        return 0
+    running="$(purge_compose 06-ai-core-lemonade ps --services --status running || true)"
+    if [ -n "$running" ]; then
+        LOG "Restarting running Lemonade services: $(echo "$running" | tr '\n' ' ')"
+        # shellcheck disable=SC2086  # intentional word-splitting: one service name per line
+        purge_compose 06-ai-core-lemonade restart $running
+    else
+        LOG "No Lemonade containers running — skipping (tiger-mode may be down)."
     fi
-    # shellcheck disable=SC2086  # deliberate word splitting: one arg per service
-    tiger_purge_compose 06-ai-core-lemonade restart $running
-    LOG "Restarted: $(echo "$running" | tr '\n' ' ')"
 }
 TIGER_PURGE_EXTRA_STEPS+=(purge_lemonade)
 
-tiger_vram_purge_main
+tiger_vram_purge_main "$@"

@@ -1,26 +1,27 @@
 #!/usr/bin/env bash
 # =====================================================================
-# TigerAI VRAM Purge — nvidia entry point
+# TigerAI VRAM Purge & Service Refresh (Zero-Reboot Maintenance) — NVIDIA CUDA entry
 # Path: deployments/compose-stack/08-backup-recovery/resource/nvidia/vram-purge.sh
 #
-# The entry point does two things and nothing else — path derivation, the
-# compose bridge and the Ollama restart all live in the shared body:
-#   1. export TIGER_PLATFORM=nvidia
-#   2. call tiger_vram_purge_main
-#
-# nvidia has no platform-specific restart step: 06-ai-core-lemonade is amd-only,
-# and LLM inference here is Ollama in 03-ai-interface, which the shared body
-# already restarts.
-#
-# WARNING: must stay at the FIRST level of resource/nvidia/. The `../..` is a
-# hard-coded depth.
+# 入口只做兩件事，其餘全部留在共用主體裡（不要把路徑推導、compose 橋接、
+# Ollama 重啟複製過來）：
+#   1. 指定自己的平台 + source resource/_shared/vram-purge-common.sh
+#   2. 呼叫 tiger_vram_purge_main
+# nvidia 沒有平台專屬的重啟項 —— Lemonade（06-ai-core-lemonade）只有 amd 有，
+# 這個平台的 LLM 推論由 03-ai-interface 的 Ollama 負責，共用主體已經涵蓋。
 # =====================================================================
 
+# 這支腳本會被 crontab 直接叫起來（環境裡沒有 master-deploy.sh 的變數），
+# 而「選到哪個平台的入口檔」本身就已經決定了平台，所以這裡直接指定。
 export TIGER_PLATFORM=nvidia
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-TIGER_MODULE_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd -P)"
+TIGER_PURGE_ENTRY="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/$(basename "${BASH_SOURCE[0]}")"
+COMMON="$(dirname "$TIGER_PURGE_ENTRY")/../_shared/vram-purge-common.sh"
+if [ ! -f "$COMMON" ]; then
+    echo "[TigerAI Maintenance ERROR] 找不到共用主體：$COMMON" >&2
+    exit 1
+fi
 # shellcheck source=../_shared/vram-purge-common.sh
-source "${TIGER_MODULE_DIR}/resource/_shared/vram-purge-common.sh"
+source "$COMMON"
 
-tiger_vram_purge_main
+tiger_vram_purge_main "$@"

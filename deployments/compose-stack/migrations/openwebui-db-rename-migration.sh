@@ -34,7 +34,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 [ -f "$SCRIPT_DIR/../.env" ]             && export $(grep -v '^#' "$SCRIPT_DIR/../.env" | sed 's/\r//g' | xargs)
 
 PG_USER="${PG_USER:-adm}"
-export PGPASSWORD="${PG_PASS:-tigerai}"
+export PGPASSWORD="${PG_PASS:-CHANGE_ME}"
 PG_CONTAINER="${PG_CONTAINER:-${PG_HOST:-postgres}}"
 
 SRC_DB="tigerai"                                   # legacy shared DB
