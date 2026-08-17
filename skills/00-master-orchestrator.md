@@ -172,9 +172,18 @@ Based on `state` and `gpu` in the JSON:
   → Update state atomically as instructed.
   → **STOP.**
 
-### Step 3: Error Handling (Global Catch)
-If any command fails, IMMEDIATELY **STOP** the deployment flow and read **`02-error-recovery-guide.md`**.
-Apply the recovery strategy, log the failure in `.agent-state.json`, and wait for next invocation.
+### Step 2.5: Mandatory Pre-flight Diagnostic Output & Zero-Excuse Communication Protocol
+Whenever prompting the user for action (such as configuring `.env` in `STATE 0` or confirming reboot in `STATE 1`), the agent **MUST** include a Pre-flight Diagnostic Report in its response containing:
+1. **Hardware & GPU Probe Results** (Platform, GPU vendor, driver status)
+2. **Host Port Scan Table** (Status of 8080, 9000, 8000, 5432, 5678, 6333, 11434, 3000, 5001, 443)
+3. **Registry / Image Fallback Status** (Confirmation of Docker Hub fallback for `OWUI_IMAGE` to prevent GHCR rate limiting)
+
+> 🚨 **ABSOLUTE PROHIBITION ON EXCUSES & SILENT SKIPPING:**
+> If background automated execution tools cannot run `sudo lsof` or `ss` directly (e.g. due to UI permission locks or non-interactive shell limits), the agent **MUST NOT** make excuses, silently skip informing the user, or assume port availability.
+> Instead, the agent MUST:
+> - Inspect non-intrusive sources (such as `/proc/net/tcp` and `/proc/net/tcp6`) to perform real-time port auditing.
+> - Proactively print the exact `sudo lsof -i :8080 -i :9000 ...` command to the user, explaining why user execution is needed, and request the user to run it or verify.
+
 
 ---
 
