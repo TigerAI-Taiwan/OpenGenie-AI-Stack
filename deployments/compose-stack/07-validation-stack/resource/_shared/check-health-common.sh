@@ -100,7 +100,9 @@ check_endpoint() {
     local expected_code=$3
     
     LOG "Checking $name ($url)..."
-    local http_code=$(curl -s -o /dev/null -w "%{http_code}" "$url")
+    # -L: a redirecting endpoint reports its final code, not 302. Every call site
+    # below expects 200; a bare "302" pattern could never match here.
+    local http_code=$(curl -sL -o /dev/null -w "%{http_code}" "$url")
     if echo "$http_code" | grep -qE "$expected_code"; then
         echo -e "  [${GREEN}PASS${NC}] $name is healthy. (HTTP $http_code)"
     else
@@ -115,7 +117,7 @@ tiger_check_health_main() {
 
 # 1. Infrastructure Checks
 LOG "--- [Phase 1: Base Infrastructure] ---"
-check_endpoint "Portainer" "http://$TARGET_HOST:9000" "200|302" || true
+check_endpoint "Portainer" "http://$TARGET_HOST:${PORTAINER_PORT:-9000}" "200|302" || true
 
 # 2. Database Connectivity (via pg_isready)
 LOG "--- [Phase 2: Database] ---"

@@ -98,12 +98,22 @@ confirm() {
 # does not know about is still connected.
 FORCE_DROP=${FORCE_DROP:-0}
 
+# `tar -xzf` merges and never deletes, so files written after the backup survive a
+# restore (for Qdrant that is corruption, not untidiness). The target is therefore
+# emptied first. DATA_DIRS defaults to all of "$BASE_DIR", and clearing that is only
+# recoverable because backup-tigerai.sh excludes nothing — if an --exclude is ever
+# added there, tighten can_clean_target in the same change or restore becomes
+# "wiped it, cannot put it back".
+CLEAN_TARGET=${CLEAN_TARGET:-1}
+
 usage() {
-    echo "Usage: sudo $0 [-y] [--force] [backup_date_folder] {all | db | data}"
+    echo "Usage: sudo $0 [-y] [--force] [--no-clean] [backup_date_folder] {all | db | data}"
     echo "Example: sudo $0 20260202_120000 all"
     echo "  -y / ASSUME_YES=1  skip the overwrite confirmation (non-interactive)"
     echo "  --force            let dropdb terminate any remaining client connections"
     echo "                     instead of aborting (see the preflight gate)"
+    echo "  --no-clean         extract OVER the existing files instead of emptying"
+    echo "                     the target directory first (old, merging behaviour)"
     echo ""
     echo "Available backups in $BACKUP_ROOT:"
     ls -1 "$BACKUP_ROOT" 2>/dev/null || echo "  (None found)"
@@ -115,9 +125,10 @@ usage() {
 # Flags may be given in any order; the first non-flag argument ends the loop.
 while [ $# -gt 0 ]; do
     case "$1" in
-        -y)      ASSUME_YES=1; shift ;;
-        --force) FORCE_DROP=1;  shift ;;
-        *)       break ;;
+        -y)         ASSUME_YES=1;   shift ;;
+        --force)    FORCE_DROP=1;   shift ;;
+        --no-clean) CLEAN_TARGET=0; shift ;;
+        *)          break ;;
     esac
 done
 [ $# -lt 2 ] && usage
@@ -576,6 +587,97 @@ restore_db() {
     LOG " Database restoration complete."
 }
 
+# --- 2a) Guards for emptying a target directory --------------------------------
+# Checked against the literal path and again against the realpath. /home/wrt is here
+# because BASE_DIR defaults one level below it. `for b in $NEVER_CLEAR` splits on
+# newlines as well as spaces.
+NEVER_CLEAR="/ /home /var /etc /usr /opt /root /boot /tmp /srv /run /mnt /media /home/wrt
+/var/lib /var/log /var/cache /var/tmp /var/spool /var/run
+/usr/local /usr/share /usr/lib /usr/lib64 /usr/bin /usr/sbin /usr/include
+/boot/efi /root/.ssh /etc/ssh /etc/systemd"
+
+# Runs BEFORE anything is deleted: a corrupt tarball discovered after the wipe has
+# no recovery path. Keep the call site's order.
+assert_archive_sane() {
+    local file="$1" members
+    [ -r "$file" ] || ERROR "Archive '$file' is not readable — nothing has been deleted yet."
+    if ! members=$(tar -tzf "$file" 2>&1); then
+        ERROR "Archive '$file' is unreadable or corrupt (${members//$'\n'/ }) — nothing has been deleted yet."
+    fi
+    [ -n "${members//[[:space:]]/}" ] || \
+        ERROR "Archive '$file' contains no members — nothing has been deleted yet."
+    if printf '%s\n' "$members" | grep -q '^/'; then
+        ERROR "Archive '$file' contains absolute-path members — refusing. Nothing has been deleted yet."
+    fi
+    if printf '%s\n' "$members" | grep -qE '(^|/)\.\.(/|$)'; then
+        ERROR "Archive '$file' contains '..' path components — refusing. Nothing has been deleted yet."
+    fi
+    return 0
+}
+
+# Returns 1 and WARNs rather than aborting: DATA_DIRS may legitimately sit outside
+# BASE_DIR, and merging beats guessing at a boundary we cannot reason about.
+can_clean_target() {
+    local t="$1" b rt rb depth
+    t="${t%/}"
+
+    # BASE_DIR itself is admitted on purpose: it is the default DATA_DIRS value.
+    case "$t" in
+        "${BASE_DIR%/}"|"${BASE_DIR%/}"/*) ;;
+        *) WARN "Target '$t' is outside BASE_DIR ('$BASE_DIR'); extracting OVER the existing files instead of emptying it first. Files written after the backup will survive the restore."
+           return 1 ;;
+    esac
+
+    # A manifest path is not trusted input.
+    case "/$t/" in
+        */../*) WARN "Target '$t' contains a '..' component; not emptying it."; return 1 ;;
+    esac
+
+    depth=$(printf '%s' "${t#/}" | tr '/' '\n' | grep -c .)
+    [ "$depth" -ge 2 ] || { WARN "Target '$t' is too shallow to empty safely; not emptying it."; return 1; }
+
+    for b in $NEVER_CLEAR; do
+        [ "$t" = "$b" ] && { WARN "Target '$t' is on the never-clear list; not emptying it."; return 1; }
+    done
+
+    rt=$(realpath -e "$t" 2>/dev/null) || { WARN "Cannot resolve target '$t'; not emptying it."; return 1; }
+    rb=$(realpath -e "${BASE_DIR%/}" 2>/dev/null) || { WARN "Cannot resolve BASE_DIR '$BASE_DIR'; not emptying '$t'."; return 1; }
+    rt="${rt%/}"; rb="${rb%/}"
+
+    # Again on the resolved path: the check above only saw the literal one.
+    for b in $NEVER_CLEAR; do
+        [ "$rt" = "$b" ] && { WARN "Target '$t' resolves to '$rt', which is on the never-clear list; not emptying it."; return 1; }
+    done
+
+    # With the symlink check below this blocks both escapes, without refusing a
+    # setup where a *parent* of BASE_DIR is a symlink.
+    case "$rt" in
+        "$rb"|"$rb"/*) ;;
+        *) WARN "Target '$t' resolves to '$rt', outside BASE_DIR ('$rb'); not emptying it."; return 1 ;;
+    esac
+
+    [ -L "$t" ] && { WARN "Target '$t' is a symlink; not emptying it."; return 1; }
+
+    # Never delete the ground we stand on.
+    for b in "$STACK_DIR" "$BACKUP_ROOT" "$RESTORE_DIR"; do
+        b="${b%/}"
+        case "$b" in
+            "$t"|"$t"/*) WARN "Target '$t' contains '$b'; not emptying it."; return 1 ;;
+        esac
+    done
+
+    return 0
+}
+
+# Contents only, never the directory: its ownership and mode matter to the services
+# (docling wants 1001:1001) and a bind mount still points at it.
+clear_dir_contents() {
+    local dir="${1%/}" count
+    count=$(find "$dir" -mindepth 1 -maxdepth 1 | wc -l | tr -d ' ')
+    LOG "Emptying '${dir}' before extraction (${count} top-level item(s))..."
+    sudo find "$dir" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+}
+
 # --- 2) Restore Data Directories ---
 restore_data() {
     LOG " [2/2] Restoring Application Data Volumes..."
@@ -616,6 +718,9 @@ restore_data() {
     for entry in "${targets[@]}"; do
         echo "    - ${entry#*=}"
     done
+    if [ "$CLEAN_TARGET" = "1" ]; then
+        WARN "Each path above is EMPTIED before its archive is extracted, so anything written there after the backup was taken is deleted. Pass --no-clean to extract over the existing files instead."
+    fi
     confirm "Overwrite the data paths listed above?"
 
     for entry in "${targets[@]}"; do
@@ -624,6 +729,13 @@ restore_data() {
         file="${RESTORE_DIR}/${tar_name}"
         LOG "Restoring ${tar_name} to ${target_path}..."
         sudo mkdir -p "$target_path"
+        # Validate first, delete only afterwards.
+        if [ "$CLEAN_TARGET" = "1" ]; then
+            assert_archive_sane "$file"
+            if can_clean_target "$target_path"; then
+                clear_dir_contents "$target_path"
+            fi
+        fi
         sudo tar -xzf "$file" -C "$target_path"
     done
     LOG " Data volumes restoration complete."

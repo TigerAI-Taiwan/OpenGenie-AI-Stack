@@ -31,8 +31,11 @@ services:
       - QUEUE_BULL_REDIS_PORT=6379
       - QUEUE_BULL_REDIS_DB=0
       - QUEUE_BULL_PREFIX=n8n
-      - N8N_USER_MANAGEMENT_JWT_SECRET=${N8N_SECRET:-CHANGE_ME}
-      - N8N_ENCRYPTION_KEY=${N8N_SECRET:-CHANGE_ME}
+      # Keep the legacy N8N_SECRET leg: without it a machine still on the old name
+      # falls through to the default, silently swapping the key and making every
+      # stored credential undecryptable with no startup error.
+      - N8N_USER_MANAGEMENT_JWT_SECRET=${N8N_ENCRYPTION_KEY:-${N8N_SECRET:-CHANGE_ME}}
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY:-${N8N_SECRET:-CHANGE_ME}}
       - GENERIC_TIMEZONE=Asia/Taipei
       - N8N_DEFAULT_BINARY_DATA_MODE=filesystem
       - N8N_BLOCK_FS_WRITE_ACCESS=false
@@ -89,7 +92,9 @@ services:
       - QUEUE_BULL_REDIS_PORT=6379
       - QUEUE_BULL_REDIS_DB=0
       - QUEUE_BULL_PREFIX=n8n
-      - N8N_ENCRYPTION_KEY=${N8N_SECRET:-CHANGE_ME}
+      # Must resolve to the same value as n8n-main. No N8N_USER_MANAGEMENT_JWT_SECRET
+      # here on purpose: it only signs UI sessions and the worker serves no UI.
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY:-${N8N_SECRET:-CHANGE_ME}}
       - N8N_SECURE_COOKIE=false
       - N8N_WORKER_MAX_CONCURRENT_EXECUTIONS=${WORKER_CONCURRENCY:-5}
       - QUEUE_HEALTH_CHECK_ACTIVE=true

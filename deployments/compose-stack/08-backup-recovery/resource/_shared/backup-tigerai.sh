@@ -156,7 +156,10 @@ backup_data_dirs() {
             fi
             seen_names="${seen_names}${name} "
             LOG "Packaging $dir..."
-            sudo tar -czf "${BACKUP_PATH}/data_${name}.tar.gz" -C "$dir" .
+            # --sparse: Qdrant's segment files are sparse; without it tar stores every
+            # hole as real zero bytes (3.9 MB -> 1.2 GB on restore). Create-side only,
+            # so older archives stay inflated — `fallocate --dig-holes` reclaims those.
+            sudo tar --sparse -czf "${BACKUP_PATH}/data_${name}.tar.gz" -C "$dir" .
             # Record source path so restore returns data to the exact same location
             echo "data_${name}.tar.gz=${dir}" >> "$MANIFEST"
         else
