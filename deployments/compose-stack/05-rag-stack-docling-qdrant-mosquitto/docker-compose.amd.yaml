@@ -1,0 +1,44 @@
+# =====================================================================
+# TigerAI RAG Stack — amd overlay
+# Path: deployments/compose-stack/05-rag-stack-docling-qdrant-mosquitto/docker-compose.amd.yaml
+#
+# Differences from base:
+#   1. GPU access for docling and qdrant: ROCm/Vulkan uses devices
+#      (/dev/kfd + /dev/dri) plus read-only mounts of the host's DRI drivers
+#      and Vulkan ICD manifests, not nvidia's deploy.resources.reservations.
+#   2. qdrant image: the AMD GPU build.
+#   3. docling: HSA_OVERRIDE_GFX_VERSION and OMP_NUM_THREADS, amd only.
+#   4. MQTT_IMAGE compatibility — the amd stack used that name where the
+#      others used MOSQUITTO_IMAGE.
+#
+# `volumes` merges by target and `environment` by variable name, so the base
+# entries survive and only these are added.
+# =====================================================================
+services:
+  mosquitto:
+    # Keeps an existing amd .env that sets MQTT_IMAGE working. Falls through to
+    # MOSQUITTO_IMAGE, then to the tag, so setting either name works.
+    image: ${MQTT_IMAGE:-${MOSQUITTO_IMAGE:-eclipse-mosquitto:latest}}
+
+  docling:
+    # No AMD GPU build is published; the CPU image is used with Vulkan exposed.
+    image: ${DOCLING_IMAGE:-ghcr.io/docling-project/docling-serve-cpu:latest}
+    devices:
+      - /dev/kfd:/dev/kfd
+      - /dev/dri:/dev/dri
+    volumes:
+      - /usr/lib/x86_64-linux-gnu/dri:/usr/lib/x86_64-linux-gnu/dri:ro
+      - /usr/share/vulkan/icd.d:/usr/share/vulkan/icd.d:ro
+    environment:
+      # Reports a supported GFX version to ROCm for cards it does not know.
+      - HSA_OVERRIDE_GFX_VERSION=12.0.0
+      - OMP_NUM_THREADS=40
+
+  qdrant:
+    image: ${QDRANT_IMAGE:-qdrant/qdrant:gpu-amd-latest}
+    devices:
+      - /dev/kfd:/dev/kfd
+      - /dev/dri:/dev/dri
+    volumes:
+      - /usr/lib/x86_64-linux-gnu/dri:/usr/lib/x86_64-linux-gnu/dri:ro
+      - /usr/share/vulkan/icd.d:/usr/share/vulkan/icd.d:ro

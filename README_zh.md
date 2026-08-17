@@ -16,7 +16,7 @@
 ## 核心特點
 
 - **多 GPU 支援** — AMD ROCm、NVIDIA CUDA、ARM64（Apple Silicon、Jetson、Ampere）
-- **12 層級方法論** — 從驅動安裝到監控的結構化模組，每個 Phase 可獨立部署
+- **11 層級方法論** — 從驅動安裝到監控的結構化模組，每個 Phase 可獨立部署
 - **LLM 推論** — Ollama + OpenWebUI，顯存常駐優化 + Lemonade 原生推論引擎
 - **RAG 知識庫** — Qdrant 向量資料庫 + Docling 文件解析 + Mosquitto MQTT
 - **工作流自動化** — n8n Queue Mode，含 Redis 與分散式 Worker
@@ -42,59 +42,55 @@ git clone https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack.git
 cd OpenGenie-AI-Stack
 ```
 
-### 2. 選擇對應的 Stack
-
-| 硬體 | 目錄 |
-|------|------|
-| NVIDIA GPU | `deployments/nvidia-compose-stack/` |
-| AMD ROCm GPU | `deployments/amd-compose-stack/` |
-| ARM64（Apple Silicon / Jetson / Ampere） | `deployments/arm64-compose-stack/` |
+### 2. 設定環境變數
 
 ```bash
-cd deployments/amd-compose-stack   # 或 nvidia / arm64
-```
+cd deployments/compose-stack
 
-### 3. 設定環境變數
+# 複製對應硬體的範例檔
+cp .env.nvidia.example .env      # 或 .env.amd.example / .env.arm64.example
 
-```bash
-cp .env.example .env
 # 編輯 .env，將所有 CHANGE_ME 替換為實際值
 nano .env
 ```
 
-### 4. 硬體校準（建議執行）
+三份範例刻意分開：各平台定義的 key 不同，而且某些 key 在特定平台必須「不存在」而非留空。
+
+### 3. 硬體校準（建議執行）
 
 ```bash
-sudo bash master-deploy.sh init
+sudo -E bash deployments/tiger-deploy.sh
 ```
 
-自動偵測 CPU / GPU 規格，將最佳化調優設定寫入 `tiger-tuning.env`。
+自動偵測硬體、匯出 `TIGER_PLATFORM`，並將調優設定寫入 `tiger-tuning.env`。
 
-### 5. 部署
+### 4. 部署
 
 ```bash
 # 全量部署（所有 Phase）
-sudo bash master-deploy.sh all
+sudo -E bash deployments/compose-stack/master-deploy.sh all
 
-# 或單獨部署特定 Phase
-sudo bash 02-database-postgres-pgadmin/deploy.sh
-sudo bash 03-ai-interface-ollama-openwebui-redis/deploy.sh
+# 或單獨部署特定 Phase —— 需自行指定平台
+TIGER_PLATFORM=nvidia sudo -E bash \
+  deployments/compose-stack/02-database-postgres-pgadmin/deploy.sh all
 ```
 
-### 6. 驗收測試
+`master-deploy.sh` 不會猜測平台。`TIGER_PLATFORM` 未設定時直接報錯停止，因為猜錯會拉到錯的 GPU image。
+
+### 5. 驗收測試
 
 ```bash
-sudo bash master-deploy.sh test
+sudo -E bash deployments/compose-stack/master-deploy.sh test
 ```
 
 ---
 
-## 12 層級架構
+## 11 層級架構
 
 | Phase | 層級 | 核心元件 |
 |:-----:|------|----------|
 | 00 | HWI 評估 | 硬體自動校準，產生調優設定檔 |
-| 00 | 系統底座 | 驅動安裝、Docker、Node-RED |
+| 00 | 系統底座 | 驅動安裝、Docker |
 | 01 | 基礎建設 | Portainer、WebSSH |
 | 02 | 資料庫 | PostgreSQL 17、pgAdmin 4 |
 | 03 | AI 介面 | Ollama、OpenWebUI、Redis |
@@ -105,7 +101,6 @@ sudo bash master-deploy.sh test
 | 08 | 備份與還原 | 一鍵備份、還原、VRAM 清除 |
 | 09 | 監控告警 | tiger-monitor、MQTT 告警流程 |
 | 10 | 可觀測性 | Grafana、Prometheus、Loki、cAdvisor |
-| 11 | 生命週期 | What's Up Docker（WUD） |
 
 ---
 
@@ -120,7 +115,6 @@ sudo bash master-deploy.sh test
 | pgAdmin | 8000 |
 | Qdrant | 6333 |
 | Ollama | 11434 |
-| WUD | 3838 |
 
 ---
 
@@ -128,10 +122,14 @@ sudo bash master-deploy.sh test
 
 ```
 deployments/
-├── amd-compose-stack/          # AMD ROCm Stack
-├── nvidia-compose-stack/       # NVIDIA CUDA Stack
-└── arm64-compose-stack/        # ARM64 Stack
+├── tiger-deploy.sh             # 自動偵測硬體、匯出 TIGER_PLATFORM
+└── compose-stack/
+    ├── lib/common.sh           # 共用 shell 函式庫
+    ├── lib/log.sh              # 日誌與顏色（零副作用）
+    ├── master-deploy.sh
+    ├── .env.{amd,nvidia,arm64}.example
     ├── 00-pre-flight-advisor/
+    ├── 00-system-setup-gpu-driver-and-docker/
     ├── 01-infra-webssh-portainer/
     ├── 02-database-postgres-pgadmin/
     ├── 03-ai-interface-ollama-openwebui-redis/
@@ -142,11 +140,7 @@ deployments/
     ├── 08-backup-recovery/
     ├── 09-monitoring-alerting/
     ├── 10-observability-grafana/
-    ├── 11-lifecycle-wud/
-    ├── 12-commercial-gateway/
-    ├── 13-landing-portal/
-    ├── master-deploy.sh
-    └── .env.example
+    └── migrations/
 ```
 
 ---

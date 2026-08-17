@@ -1,0 +1,22 @@
+# =====================================================================
+# TigerAI AI Interface — nvidia overlay
+# Path: deployments/compose-stack/03-ai-interface-ollama-openwebui-redis/docker-compose.nvidia.yaml
+#
+# Differences from base:
+#   1. ollama GPU access: deploy.resources.reservations (driver: nvidia).
+#   2. redis platform: linux/amd64 — only the nvidia stack carried this. The
+#      arm64 stack obviously cannot, and the amd stack never had it. Preserved
+#      rather than unified.
+# =====================================================================
+services:
+  redis:
+    platform: linux/amd64
+
+  ollama:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

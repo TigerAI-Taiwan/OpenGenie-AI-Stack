@@ -61,17 +61,25 @@ chore: remove obsolete config audit reports
 
 ## Stack Testing
 
-Before submitting, verify your changes against the relevant deployment stack:
+Before submitting, verify your changes on each platform you can reach. There
+is one stack; the platform is selected by `TIGER_PLATFORM`:
 
 ```bash
-# AMD
-./deployments/amd-compose-stack/reinstall-all.sh
+TIGER_PLATFORM=amd    sudo -E bash deployments/compose-stack/master-deploy.sh all
+TIGER_PLATFORM=nvidia sudo -E bash deployments/compose-stack/master-deploy.sh all
+TIGER_PLATFORM=arm64  sudo -E bash deployments/compose-stack/master-deploy.sh all
+```
 
-# NVIDIA
-./deployments/nvidia-compose-stack/reinstall-all.sh
+If you cannot test on real hardware, at minimum confirm the compose files
+still expand for all three platforms:
 
-# ARM64
-./deployments/arm64-compose-stack/reinstall-all.sh
+```bash
+cd deployments/compose-stack/<module>
+for p in amd nvidia arm64; do
+  docker compose -f docker-compose.base.yaml \
+    $([ -f docker-compose.$p.yaml ] && echo -f docker-compose.$p.yaml) \
+    --env-file ../.env.$p.example config >/dev/null && echo "$p OK"
+done
 ```
 
 ---

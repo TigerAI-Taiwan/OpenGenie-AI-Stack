@@ -68,8 +68,10 @@ sudo snap remove lemonade 2>/dev/null || true
 Remove the massive Docling Python environment and any dangling Docker images associated with the stack:
 
 ```bash
-sudo rm -rf deployments/nvidia-compose-stack/05-rag-stack-docling-qdrant-mosquitto/.venv
+sudo rm -rf deployments/compose-stack/05-rag-stack-docling-qdrant-mosquitto/.venv
 sudo docker rmi ghcr.io/docling-project/docling-serve-cu128:latest 2>/dev/null || true
+sudo docker rmi ghcr.io/docling-project/docling-serve-cpu:latest 2>/dev/null || true
+sudo docker rmi ghcr.io/docling-project/docling-serve-rocm:main 2>/dev/null || true
 ```
 
 ---
@@ -83,10 +85,10 @@ Reset the agent's memory so the next invocation starts from `PRISTINE`:
 # If not, run the locator block from there first.
 rm -f "$PROJECT_ROOT/.agent-state.json"
 rm -f "$PROJECT_ROOT/.agent-state.bak.json"
-rm -f "$PROJECT_ROOT/deployments/nvidia-compose-stack/tiger-tuning.env"
-rm -f "$PROJECT_ROOT/deployments/amd-compose-stack/tiger-tuning.env"
-rm -f "$PROJECT_ROOT/deployments/arm64-compose-stack/tiger-tuning.env"
-rm -f "$PROJECT_ROOT/deployments/nvidia-compose-stack/*/.env"
+rm -f "$PROJECT_ROOT/deployments/compose-stack/tiger-tuning.env"
+rm -f "$PROJECT_ROOT/deployments/compose-stack/.env"
+# Module-level overrides, if any were created
+rm -f "$PROJECT_ROOT/deployments/compose-stack"/*/.env
 ```
 
 ---

@@ -16,7 +16,7 @@ AMD・NVIDIA・ARM64 ハードウェアに対応した、モジュール型の�
 ## 主な特徴
 
 - **マルチ GPU 対応** — AMD ROCm・NVIDIA CUDA・ARM64（Apple Silicon、Jetson、Ampere）
-- **12 フェーズ方法論** — ドライバーセットアップから監視まで、フェーズごとに独立してデプロイ可能
+- **11 フェーズ方法論** — ドライバーセットアップから監視まで、フェーズごとに独立してデプロイ可能
 - **LLM 推論** — Ollama + OpenWebUI（常時 VRAM 常駐最適化）+ Lemonade ネイティブ推論エンジン
 - **RAG パイプライン** — Qdrant ベクター DB + Docling ドキュメント解析 + Mosquitto MQTT
 - **ワークフロー自動化** — n8n キューモード（Redis + 分散ワーカー）
@@ -42,59 +42,58 @@ git clone https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack.git
 cd OpenGenie-AI-Stack
 ```
 
-### 2. スタックの選択
-
-| ハードウェア | ディレクトリ |
-|------------|------------|
-| NVIDIA GPU | `deployments/nvidia-compose-stack/` |
-| AMD ROCm GPU | `deployments/amd-compose-stack/` |
-| ARM64（Apple Silicon / Jetson / Ampere） | `deployments/arm64-compose-stack/` |
+### 2. 環境変数の設定
 
 ```bash
-cd deployments/amd-compose-stack   # または nvidia / arm64
-```
+cd deployments/compose-stack
 
-### 3. 環境変数の設定
+# ハードウェアに対応するサンプルをコピー
+cp .env.nvidia.example .env      # または .env.amd.example / .env.arm64.example
 
-```bash
-cp .env.example .env
-# .env を編集し、CHANGE_ME をすべて実際の値に置き換えてください
+# .env を編集し、すべての CHANGE_ME を実際の値に置き換えてください
 nano .env
 ```
 
-### 4. ハードウェアキャリブレーション（推奨）
+3 つのサンプルは意図的に分離しています。プラットフォームごとに定義するキーが異なり、
+一部のキーは空ではなく「存在しない」必要があるためです。
+
+### 3. ハードウェアキャリブレーション（推奨）
 
 ```bash
-sudo bash master-deploy.sh init
+sudo -E bash deployments/tiger-deploy.sh
 ```
 
-CPU/GPU スペックを自動検出し、最適化チューニング設定を `tiger-tuning.env` に書き込みます。
+ハードウェアを自動検出し、`TIGER_PLATFORM` をエクスポートして、
+チューニング設定を `tiger-tuning.env` に書き込みます。
 
-### 5. デプロイ
+### 4. デプロイ
 
 ```bash
-# 全フェーズ一括デプロイ
-sudo bash master-deploy.sh all
+# フルデプロイ（全フェーズ）
+sudo -E bash deployments/compose-stack/master-deploy.sh all
 
-# または個別フェーズをデプロイ
-sudo bash 02-database-postgres-pgadmin/deploy.sh
-sudo bash 03-ai-interface-ollama-openwebui-redis/deploy.sh
+# 個別フェーズのデプロイ —— プラットフォームは自分で指定します
+TIGER_PLATFORM=nvidia sudo -E bash \
+  deployments/compose-stack/02-database-postgres-pgadmin/deploy.sh all
 ```
 
-### 6. 動作確認
+`master-deploy.sh` はプラットフォームを推測しません。`TIGER_PLATFORM` が未設定の場合、
+誤った GPU イメージを取得することを避けるため、エラーで停止します。
+
+### 5. 検証
 
 ```bash
-sudo bash master-deploy.sh test
+sudo -E bash deployments/compose-stack/master-deploy.sh test
 ```
 
 ---
 
-## 12 フェーズアーキテクチャ
+## 11 フェーズアーキテクチャ
 
 | フェーズ | レイヤー | コアコンポーネント |
 |:-------:|---------|-----------------|
 | 00 | HWI アドバイザー | ハードウェア自動キャリブレーション、チューニングプロファイル生成 |
-| 00 | システム基盤 | ドライバーセットアップ、Docker、Node-RED |
+| 00 | システム基盤 | ドライバーセットアップ、Docker |
 | 01 | インフラストラクチャ | Portainer、WebSSH |
 | 02 | データベース | PostgreSQL 17、pgAdmin 4 |
 | 03 | AI インターフェース | Ollama、OpenWebUI、Redis |
@@ -105,7 +104,6 @@ sudo bash master-deploy.sh test
 | 08 | バックアップ & リカバリー | ワンクリックバックアップ、リストア、VRAM パージ |
 | 09 | 監視 & アラート | tiger-monitor、MQTT アラートワークフロー |
 | 10 | 可観測性 | Grafana、Prometheus、Loki、cAdvisor |
-| 11 | ライフサイクル | What's Up Docker（WUD） |
 
 ---
 
@@ -120,7 +118,6 @@ sudo bash master-deploy.sh test
 | pgAdmin | 8000 |
 | Qdrant | 6333 |
 | Ollama | 11434 |
-| WUD | 3838 |
 
 ---
 
@@ -128,10 +125,14 @@ sudo bash master-deploy.sh test
 
 ```
 deployments/
-├── amd-compose-stack/          # AMD ROCm スタック
-├── nvidia-compose-stack/       # NVIDIA CUDA スタック
-└── arm64-compose-stack/        # ARM64 スタック
+├── tiger-deploy.sh             # ハードウェア自動検出
+└── compose-stack/
+    ├── lib/common.sh           # 共有シェルライブラリ
+    ├── lib/log.sh              # ログと色（副作用なし）
+    ├── master-deploy.sh
+    ├── .env.{amd,nvidia,arm64}.example
     ├── 00-pre-flight-advisor/
+    ├── 00-system-setup-gpu-driver-and-docker/
     ├── 01-infra-webssh-portainer/
     ├── 02-database-postgres-pgadmin/
     ├── 03-ai-interface-ollama-openwebui-redis/
@@ -142,11 +143,7 @@ deployments/
     ├── 08-backup-recovery/
     ├── 09-monitoring-alerting/
     ├── 10-observability-grafana/
-    ├── 11-lifecycle-wud/
-    ├── 12-commercial-gateway/
-    ├── 13-landing-portal/
-    ├── master-deploy.sh
-    └── .env.example
+    └── migrations/
 ```
 
 ---

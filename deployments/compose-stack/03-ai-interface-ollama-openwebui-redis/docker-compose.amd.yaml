@@ -1,0 +1,20 @@
+# =====================================================================
+# TigerAI AI Interface — amd overlay
+# Path: deployments/compose-stack/03-ai-interface-ollama-openwebui-redis/docker-compose.amd.yaml
+#
+# Differences from base:
+#   1. ollama GPU access: ROCm/Vulkan uses devices (/dev/kfd + /dev/dri),
+#      not nvidia's deploy.resources.reservations.
+#   2. OLLAMA_VULKAN=1 — amd only.
+#
+# With list syntax, compose merges `environment` by variable name and
+# `volumes` by target, so only the entries being added or replaced are listed.
+# =====================================================================
+services:
+  ollama:
+    # AMD ROCm/Vulkan: expose the kernel fusion driver + DRI render nodes.
+    devices:
+      - /dev/kfd:/dev/kfd
+      - /dev/dri:/dev/dri
+    environment:
+      - OLLAMA_VULKAN=1

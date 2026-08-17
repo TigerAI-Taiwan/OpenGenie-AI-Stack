@@ -2,7 +2,7 @@
 
 > 🛑 **CRITICAL AI AGENT INSTRUCTION:** If the user requests to install, configure, deploy, or purge this project, the AI Agent **MUST** read and follow the deployment protocols defined in the `skills/` directory BEFORE executing any shell command, probing the system, or writing any files. The orchestrator protocol starts with `skills/00-master-orchestrator.md`.
 
-> "OpenGenie AI Stack is a modular, self-hosted AI infrastructure framework that runs on AMD ROCm, NVIDIA CUDA, and ARM64 hardware. Deploy a complete private AI system on your own server in one shot — covering LLM inference, RAG knowledge base, workflow automation, and observability monitoring. Designed around a 12-phase deployment methodology with autonomous AI agent skills for end-to-end installation."
+> "OpenGenie AI Stack is a modular, self-hosted AI infrastructure framework that runs on AMD ROCm, NVIDIA CUDA, and ARM64 hardware. Deploy a complete private AI system on your own server in one shot — covering LLM inference, RAG knowledge base, workflow automation, and observability monitoring. Designed around an 11-phase deployment methodology with autonomous AI agent skills for end-to-end installation."
 
 ## Project overview
 
@@ -24,28 +24,34 @@
 - [Installation guide — autonomous installation & deployment protocol](https://raw.githubusercontent.com/TigerAI-Taiwan/OpenGenie-AI-Stack/main/skills/05-installation-guide.md)
 
 
-## Hardware stacks
+## Hardware platforms
 
-- [AMD ROCm stack — README](https://raw.githubusercontent.com/TigerAI-Taiwan/OpenGenie-AI-Stack/main/deployments/amd-compose-stack/README.md)
-- [NVIDIA CUDA stack — README](https://raw.githubusercontent.com/TigerAI-Taiwan/OpenGenie-AI-Stack/main/deployments/nvidia-compose-stack/README.md)
-- [ARM64 stack (Apple Silicon / Jetson / Ampere) — README](https://raw.githubusercontent.com/TigerAI-Taiwan/OpenGenie-AI-Stack/main/deployments/arm64-compose-stack/README.md)
+One stack serves all three platforms. The target is selected at run time by
+TIGER_PLATFORM (amd | nvidia | arm64), not by choosing a directory.
 
-## 12-phase deployment modules (AMD reference)
+- [Unified compose stack](https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/tree/main/deployments/compose-stack)
+- [Shared shell library (tiger_compose / tiger_res / env loading)](https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/tree/main/deployments/compose-stack/lib/common.sh)
+- [Master deployer](https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/tree/main/deployments/compose-stack/master-deploy.sh)
+- [Entry point — hardware detection and TIGER_PLATFORM export](https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/blob/main/deployments/tiger-deploy.sh)
+- [Migration guide — v2.0.0 to v3.0.0, merging the three per-platform stacks](https://raw.githubusercontent.com/TigerAI-Taiwan/OpenGenie-AI-Stack/main/docs/MIGRATION.md)
 
-- [Phase 00 — HWI hardware advisor (auto tuning)](https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/tree/main/deployments/amd-compose-stack/00-pre-flight-advisor)
-- [Phase 00 — System setup: ROCm drivers + Docker](https://raw.githubusercontent.com/TigerAI-Taiwan/OpenGenie-AI-Stack/main/deployments/amd-compose-stack/00-system-setup-rocm-docker/README.md)
-- [Phase 01 — Infrastructure: Portainer + WebSSH](https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/tree/main/deployments/amd-compose-stack/01-infra-webssh-portainer)
-- [Phase 02 — Database: PostgreSQL 17 + pgAdmin 4](https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/tree/main/deployments/amd-compose-stack/02-database-postgres-pgadmin)
-- [Phase 03 — AI interface: Ollama + OpenWebUI + Redis](https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/tree/main/deployments/amd-compose-stack/03-ai-interface-ollama-openwebui-redis)
-- [Phase 04 — Automation: n8n Queue Mode + Workers](https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/tree/main/deployments/amd-compose-stack/04-automation-n8n)
-- [Phase 05 — RAG stack: Docling + Qdrant + Mosquitto MQTT](https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/tree/main/deployments/amd-compose-stack/05-rag-stack-docling-qdrant-mosquitto)
-- [Phase 06 — AI core: Lemonade inference engine](https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/tree/main/deployments/amd-compose-stack/06-ai-core-lemonade)
-- [Phase 07 — Validation: health checks + benchmarks](https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/tree/main/deployments/amd-compose-stack/07-validation-stack)
-- [Phase 07 — Node-RED automation (optional)](https://raw.githubusercontent.com/TigerAI-Taiwan/OpenGenie-AI-Stack/main/deployments/amd-compose-stack/07-automation-nodered/README.md)
-- [Phase 08 — Backup & recovery: one-click snapshot + restore](https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/tree/main/deployments/amd-compose-stack/08-backup-recovery)
-- [Phase 09 — Monitoring & alerting: tiger-monitor + MQTT alerts](https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/tree/main/deployments/amd-compose-stack/09-monitoring-alerting)
-- [Phase 10 — Observability: Grafana + Prometheus + Loki + cAdvisor + DCGM](https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/tree/main/deployments/amd-compose-stack/10-observability-grafana)
-- [Phase 11 — Lifecycle: What's Up Docker (image update tracking)](https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/tree/main/deployments/amd-compose-stack/11-lifecycle-wud)
+## 11-phase deployment modules
+
+Each module holds its own deploy.sh, and where it runs containers a
+docker-compose.base.yaml plus a per-platform overlay.
+
+- [Phase 00 — HWI hardware advisor (auto tuning)](https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/tree/main/deployments/compose-stack/00-pre-flight-advisor)
+- [Phase 00 — System setup: GPU driver + Docker](https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/tree/main/deployments/compose-stack/00-system-setup-gpu-driver-and-docker)
+- [Phase 01 — Infrastructure: Portainer + WebSSH](https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/tree/main/deployments/compose-stack/01-infra-webssh-portainer)
+- [Phase 02 — Database: PostgreSQL 17 + pgAdmin 4](https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/tree/main/deployments/compose-stack/02-database-postgres-pgadmin)
+- [Phase 03 — AI interface: Ollama + OpenWebUI + Redis](https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/tree/main/deployments/compose-stack/03-ai-interface-ollama-openwebui-redis)
+- [Phase 04 — Automation: n8n Queue Mode + Workers](https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/tree/main/deployments/compose-stack/04-automation-n8n)
+- [Phase 05 — RAG stack: Docling + Qdrant + Mosquitto MQTT](https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/tree/main/deployments/compose-stack/05-rag-stack-docling-qdrant-mosquitto)
+- [Phase 06 — AI core: Lemonade inference engine (amd only)](https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/tree/main/deployments/compose-stack/06-ai-core-lemonade)
+- [Phase 07 — Validation: health checks + benchmarks](https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/tree/main/deployments/compose-stack/07-validation-stack)
+- [Phase 08 — Backup & recovery: one-click snapshot + restore](https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/tree/main/deployments/compose-stack/08-backup-recovery)
+- [Phase 09 — Monitoring & alerting: tiger-monitor + MQTT alerts](https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/tree/main/deployments/compose-stack/09-monitoring-alerting)
+- [Phase 10 — Observability: Grafana + Prometheus + Loki + cAdvisor + DCGM](https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/tree/main/deployments/compose-stack/10-observability-grafana)
 
 ## Default service ports
 
@@ -61,7 +67,6 @@
 - Loki: http://localhost:3100
 - Mosquitto MQTT: tcp://localhost:1883
 - Docling: http://localhost:5001
-- WUD: http://localhost:3838
 
 ## Repository
 

@@ -1,5 +1,16 @@
 # Changelog
 
+## [v3.0.0] - 2026-08-13
+
+- 三份平台 compose stack 合併為單一 `deployments/compose-stack/`，以 `TIGER_PLATFORM` 選擇平台。
+- OpenWebUI 改為單一容器多 uvicorn worker，新增一次性 migration 服務。
+- Lemonade 收斂為 AMD 專屬模組。
+- MQTT broker 啟用認證。
+- 修正多項因三份副本漂移而長期存在的監控與健康檢查缺陷。
+- 新增 `lib/log.sh`：日誌與顏色收斂成單一來源，各腳本不再各自複製一份。
+- **破壞性變更**，升級請見 [遷移指南](MIGRATION.md)。
+- [Full Release Note](v3.0.0/RELEASE-NOTE.md)
+
 ## [v2.0.0] - 2026-08-05
 
 - 移除 Node-RED 及相關的部署、監控與備份流程。
@@ -40,6 +51,7 @@
 - 更新部署、錯誤復原與完整清除指引。
 - [Full Release Note](v1.0.0/RELEASE-NOTE.md)
 
+[v3.0.0]: https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/compare/v2.0.0...v3.0.0
 [v2.0.0]: https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/compare/v1.3.0...v2.0.0
 [v1.3.0]: https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/compare/v1.2.1...v1.3.0
 [v1.2.1]: https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/compare/v1.2.0...v1.2.1

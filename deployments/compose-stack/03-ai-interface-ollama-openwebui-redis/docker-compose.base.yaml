@@ -1,0 +1,268 @@
+# =====================================================================
+# TigerAI AI Interface (Ollama / OpenWebUI / Redis) — base
+# Path: deployments/compose-stack/03-ai-interface-ollama-openwebui-redis/docker-compose.base.yaml
+#
+# The parts common to all three platforms. Every platform difference lives in
+# docker-compose.<platform>.yaml:
+#   ollama GPU access   amd:            devices /dev/kfd + /dev/dri (ROCm)
+#                       nvidia / arm64: deploy.resources.reservations
+#   OLLAMA_VULKAN=1     amd only
+#   redis platform      nvidia only (linux/amd64)
+#
+# WARNING: base deliberately carries NO GPU mount. If base declared nvidia's
+# reservation, the amd overlay would need `!reset` to remove it (Compose
+# >= 2.24.4, obscure semantics), and an AMD machine would otherwise be left
+# with a stray `driver: nvidia` reservation.
+#
+# ---------------------------------------------------------------------
+# TOPOLOGY CHANGE — this module no longer runs worker containers.
+#
+# Before the merge the three stacks disagreed: nvidia ran two hard-coded
+# containers (openwebui-worker-01 / -02) while amd and arm64 ran a single
+# scalable openwebui-worker. Neither survives. OpenWebUI is now one
+# openwebui-main container running `uvicorn --workers N` (upstream's
+# documented "Option B"), preceded by a one-shot openwebui-migrate service.
+#
+# This mirrors the design arrived at in the sibling stack after it hit the
+# concurrent-Alembic problem described on openwebui-migrate below. It is a
+# deliberate architecture change, not a mechanical merge — the golden
+# `docker compose config` comparison against the old files does not apply to
+# this module.
+# =====================================================================
+services:
+  redis:
+    image: ${REDIS_IMAGE:-redis/redis-stack-server:latest}
+    container_name: redis
+    restart: always
+    networks:
+      - ai_stack_net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+  ollama:
+    image: ${OLLAMA_IMAGE:-ollama/ollama:latest}
+    container_name: ollama
+    restart: always
+    ports:
+      - "${OLLAMA_PORT:-11434}:11434"
+    networks:
+      - ai_stack_net
+    # GPU access is intentionally absent here — see the warning in the header.
+    volumes:
+      - /var/lib/ollama:/root/.ollama
+    environment:
+      - OLLAMA_FLASH_ATTENTION=${OLLAMA_FLASH_ATTENTION:-1}
+      - OLLAMA_NUM_PARALLEL=${OLLAMA_NUM_PARALLEL:-2}
+      - OLLAMA_MAX_LOADED_MODELS=${OLLAMA_MAX_LOADED_MODELS:-2}
+      # -1 = keep models resident in VRAM indefinitely (never unload).
+      # amd hard-coded -1 while nvidia/arm64 defaulted to 24h; -1 is the
+      # default here and remains overridable per machine.
+      - OLLAMA_KEEP_ALIVE=${OLLAMA_KEEP_ALIVE:--1}
+      - OLLAMA_MAX_QUEUE=${OLLAMA_MAX_QUEUE:-512}
+      - OLLAMA_HOST=${OLLAMA_HOST:-0.0.0.0:11434}
+      - OLLAMA_ORIGINS=${OLLAMA_ORIGINS:-*}
+    # The ollama runtime image has no curl or wget; use the bundled CLI, which
+    # calls GET /api/tags. start_period covers server startup.
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+  # WARNING: pinning or bumping OWUI_IMAGE? Re-verify the migration gate.
+  #    openwebui-migrate (below) runs Alembic to completion before this service
+  #    starts, and this service then runs with ENABLE_DB_MIGRATIONS=false.
+  #    Three upstream behaviours must all still hold for that to be correct:
+  #      1. backend/open_webui/config.py still runs migrations at *module*
+  #         level (`if ENABLE_DB_MIGRATIONS: run_migrations()`). That is what
+  #         ENABLE_DB_MIGRATIONS=false suppresses.
+  #      2. backend/start.sh still does NOT migrate on its own — it goes
+  #         straight to `exec python -m uvicorn ... --workers "$UVICORN_WORKERS"`.
+  #         If upstream adds a pre-flight `alembic upgrade` there,
+  #         openwebui-migrate becomes redundant and should be removed rather
+  #         than left to rot.
+  #      3. uvicorn still *spawns* rather than forks its workers — this is the
+  #         whole reason openwebui-migrate exists (see its WHY block).
+  openwebui-main:
+    image: ${OWUI_IMAGE:-ghcr.io/open-webui/open-webui:main}
+    container_name: openwebui-main
+    restart: unless-stopped
+    ports:
+      - "${OWUI_PORT:-8080}:8080"
+    networks:
+      - ai_stack_net
+    # amd and arm64 used 4gb, nvidia 2gb. 4gb is the default here: the workers
+    # now share one container, so shared memory is no longer split across three.
+    shm_size: ${SHM_SIZE:-4gb}
+    # /app/backend/data holds uploaded files (DATA_DIR/uploads). Without this
+    # volume a `restart` (down + up, which recreates containers) wipes them
+    # while the chat history in Postgres survives — the UI keeps listing the
+    # files, because the metadata lives in the DB, but opening one 404s.
+    volumes:
+      - openwebui_data:/app/backend/data
+    environment:
+      - REDIS_URL=redis://redis:6379/1
+      - DATABASE_URL=postgresql://${PG_USER:-adm}:${PG_PASS:-CHANGE_ME}@${PG_HOST:-postgres}:5432/${OWUI_DB_NAME:-openwebui}
+      - OLLAMA_API_BASE_URL=http://ollama:11434
+      - WEBUI_SECRET_KEY=${OWUI_SECRET_KEY:-CHANGE_ME}
+      - AIOHTTP_CLIENT_TIMEOUT=${AIOHTTP_TIMEOUT:-900}
+      # --- multiple uvicorn workers inside this one container ----------------
+      # https://docs.openwebui.com/getting-started/advanced-topics/scaling/
+      # Consumed by start.sh as `uvicorn --workers "$UVICORN_WORKERS"`.
+      - UVICORN_WORKERS=${OWUI_UVICORN_WORKERS:-2}
+      # Migrations already ran in openwebui-migrate. Leaving this at its
+      # upstream default (true) would put every worker process back into the
+      # concurrent-Alembic race that openwebui-migrate exists to remove.
+      - ENABLE_DB_MIGRATIONS=false
+      # socket.io defaults to an in-memory client manager, which does not cross
+      # process boundaries — events would reach only whichever worker holds
+      # that client's socket, and the SESSION/USER/USAGE pools would diverge
+      # per process. Redis-backed is mandatory, not an optimisation, the moment
+      # UVICORN_WORKERS > 1. WEBSOCKET_REDIS_URL is left unset: it falls back
+      # to REDIS_URL above.
+      - WEBSOCKET_MANAGER=redis
+      # Already the upstream default; set explicitly because the multi-worker
+      # setup is only correct while it is true.
+      - ENABLE_WEBSOCKET_SUPPORT=true
+      # These CAP the connection pool, they do not preallocate it: SQLAlchemy's
+      # QueuePool is lazy, so pool_size means "keep at most N idle". Both
+      # numbers are applied twice, because internal/db.py builds a sync engine
+      # and an async engine from the same pair — the declared ceiling per
+      # process is 2 x (pool_size + max_overflow). Left unset, both engines
+      # fall back to SQLAlchemy's own defaults with no declared ceiling at all;
+      # capping it is the point, saving connections is not.
+      - DATABASE_POOL_SIZE=${OWUI_DB_POOL_SIZE:-5}
+      - DATABASE_POOL_MAX_OVERFLOW=${OWUI_DB_POOL_MAX_OVERFLOW:-5}
+      # Unset, last_active_at is UPDATEd on every authenticated request.
+      # Throttle it — the state is per-process, so N workers cost at most N
+      # writes per interval per user instead of one per request.
+      - DATABASE_USER_ACTIVE_STATUS_UPDATE_INTERVAL=${OWUI_USER_ACTIVE_INTERVAL:-300}
+      # chroma (the upstream default) is a local SQLite file and is not safe
+      # across processes — with UVICORN_WORKERS>1 uploads die with "Child
+      # process died". qdrant lives in 05-rag-stack.
+      #
+      # WARNING: 03 deploys BEFORE 05, so qdrant does not exist yet when this
+      #    container first starts. That is fine and is not a startup ordering
+      #    bug: the qdrant client is constructed lazily, its version check runs
+      #    in a daemon thread that swallows every exception, and main.py's
+      #    lifespan never touches the client. OpenWebUI starts, /health returns
+      #    200, chat works, and only RAG queries fail until 05 comes up — no
+      #    restart needed. A cross-module depends_on is impossible here anyway:
+      #    qdrant is defined in another compose file.
+      - VECTOR_DB=${OWUI_VECTOR_DB:-qdrant}
+      - QDRANT_URI=${QDRANT_URI:-http://qdrant:6333}
+      # The upstream default of 5s is too tight for the bulk upserts that
+      # Admin -> Documents -> Reindex Knowledge Base issues.
+      - QDRANT_TIMEOUT=${QDRANT_TIMEOUT:-30}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      redis:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+      openwebui-migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+  # One-shot Alembic runner. Runs to completion BEFORE openwebui-main starts
+  # (see that service's depends_on: service_completed_successfully).
+  #
+  # WHY THIS EXISTS — the root cause, not just "to avoid concurrency":
+  #   openwebui-main runs `uvicorn --workers ${OWUI_UVICORN_WORKERS}`. uvicorn
+  #   does NOT fork an already-imported parent: uvicorn/_subprocess.py builds
+  #   its children with multiprocessing's "spawn" context, and on the
+  #   workers>1 path the parent only binds the socket, never loading the app.
+  #   So the application is imported from scratch once per worker process, and
+  #   each import pulls in open_webui.config, whose module level is
+  #   `if ENABLE_DB_MIGRATIONS: run_migrations()`.
+  #   => N uvicorn workers = N concurrent `alembic upgrade head` on one DB.
+  #
+  #   Worse, that failure is SILENT: run_migrations() wraps the whole upgrade
+  #   in `except Exception: log.exception(...)`, so the process starts and
+  #   serves traffic anyway. Upstream documents this for replicas and for
+  #   in-container workers:
+  #   https://docs.openwebui.com/troubleshooting/multi-replica/
+  #
+  #   Blast radius is bounded but real: every migration runs inside one
+  #   transaction, so losers abort cleanly and cannot corrupt data or
+  #   double-insert alembic_version. What you get is a startup window where a
+  #   worker serves requests against a half-built schema (500s about missing
+  #   relations) plus N-1 swallowed error lines.
+  #
+  # WHY IT IS SHAPED LIKE THIS:
+  #   * `command:` and not `entrypoint:` — the image declares no ENTRYPOINT,
+  #     only CMD ["bash", "start.sh"], so replacing the command is the entire
+  #     override and nothing needs resetting.
+  #   * No `working_dir:` — the image's WORKDIR is /app/backend and open_webui
+  #     is NOT pip-installed, so `import open_webui` resolves purely through
+  #     cwd. Pointing working_dir deeper breaks migrations/env.py with
+  #     ModuleNotFoundError.
+  #   * Calling alembic directly rather than importing open_webui.config — the
+  #     latter is the app's own path but swallows failures and always exits 0,
+  #     which would make service_completed_successfully meaningless. This form
+  #     exits non-zero on an unreachable host, a wrong password and a missing
+  #     database, so a broken deploy stops here instead of surfacing as 500s.
+  #   * WEBUI_SECRET_KEY is REQUIRED here, not copy-paste — open_webui.env
+  #     hard-fails because start.sh, which normally generates one, is bypassed.
+  #   * Idempotent by construction: re-running against a database already at
+  #     head applies 0 migrations and exits 0, so every up/restart can run it
+  #     unconditionally.
+  openwebui-migrate:
+    image: ${OWUI_IMAGE:-ghcr.io/open-webui/open-webui:main}
+    container_name: openwebui-migrate
+    # Must not restart: a failed migration has to stay failed so that
+    # service_completed_successfully blocks openwebui-main and the deploy stops.
+    restart: "no"
+    networks:
+      - ai_stack_net
+    environment:
+      - DATABASE_URL=postgresql://${PG_USER:-adm}:${PG_PASS:-CHANGE_ME}@${PG_HOST:-postgres}:5432/${OWUI_DB_NAME:-openwebui}
+      - WEBUI_SECRET_KEY=${OWUI_SECRET_KEY:-CHANGE_ME}
+    command:
+      - python
+      - -c
+      - |
+        from alembic import command
+        from alembic.config import Config
+        cfg = Config('/app/backend/open_webui/alembic.ini')
+        cfg.set_main_option('script_location', '/app/backend/open_webui/migrations')
+        command.upgrade(cfg, 'head')
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+networks:
+  ai_stack_net:
+    external: true
+
+volumes:
+  openwebui_data:

@@ -16,7 +16,7 @@ AMD, NVIDIA, ARM64 하드웨어를 지원하는 모듈형 셀프호스팅 AI 인
 ## 주요 특징
 
 - **멀티 GPU 지원** — AMD ROCm, NVIDIA CUDA, ARM64 (Apple Silicon, Jetson, Ampere)
-- **12단계 방법론** — 드라이버 설치부터 모니터링까지, 각 단계를 독립적으로 배포 가능
+- **11단계 방법론** — 드라이버 설치부터 모니터링까지, 각 단계를 독립적으로 배포 가능
 - **LLM 추론** — Ollama + OpenWebUI (항상 준비된 VRAM 최적화) + Lemonade 네이티브 추론 엔진
 - **RAG 파이프라인** — Qdrant 벡터 DB + Docling 문서 처리 + Mosquitto MQTT
 - **워크플로우 자동화** — n8n 큐 모드 (Redis + 분산 워커)
@@ -42,59 +42,52 @@ git clone https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack.git
 cd OpenGenie-AI-Stack
 ```
 
-### 2. 스택 선택
-
-| 하드웨어 | 디렉토리 |
-|---------|---------|
-| NVIDIA GPU | `deployments/nvidia-compose-stack/` |
-| AMD ROCm GPU | `deployments/amd-compose-stack/` |
-| ARM64 (Apple Silicon / Jetson / Ampere) | `deployments/arm64-compose-stack/` |
+### 2. 환경 변수 설정
 
 ```bash
-cd deployments/amd-compose-stack   # 또는 nvidia / arm64
-```
+cd deployments/compose-stack
 
-### 3. 환경 변수 설정
+# 하드웨어에 맞는 예제를 복사
+cp .env.nvidia.example .env      # 또는 .env.amd.example / .env.arm64.example
 
-```bash
-cp .env.example .env
 # .env를 편집하고 모든 CHANGE_ME를 실제 값으로 교체하세요
 nano .env
 ```
 
-### 4. 하드웨어 캘리브레이션 (권장)
+세 개의 예제는 의도적으로 분리되어 있습니다. 플랫폼마다 정의하는 키가 다르며,
+일부 키는 비어 있는 것이 아니라 아예 없어야 합니다.
+
+### 3. 하드웨어 캘리브레이션 (권장)
 
 ```bash
-sudo bash master-deploy.sh init
+sudo -E bash deployments/tiger-deploy.sh
 ```
 
-CPU/GPU 사양을 자동 감지하고 최적화 튜닝 설정을 `tiger-tuning.env`에 기록합니다.
+하드웨어를 자동 감지하고 `TIGER_PLATFORM`을 내보낸 뒤,
+튜닝 설정을 `tiger-tuning.env`에 기록합니다.
 
-### 5. 배포
+### 4. 배포
 
 ```bash
 # 전체 배포 (모든 단계)
-sudo bash master-deploy.sh all
+sudo -E bash deployments/compose-stack/master-deploy.sh all
 
-# 또는 개별 단계 배포
-sudo bash 02-database-postgres-pgadmin/deploy.sh
-sudo bash 03-ai-interface-ollama-openwebui-redis/deploy.sh
+# 개별 단계 배포 —— 플랫폼을 직접 지정해야 합니다
+TIGER_PLATFORM=nvidia sudo -E bash \
+  deployments/compose-stack/02-database-postgres-pgadmin/deploy.sh all
 ```
 
-### 6. 검증
-
-```bash
-sudo bash master-deploy.sh test
-```
+`master-deploy.sh`는 플랫폼을 추측하지 않습니다. `TIGER_PLATFORM`이 설정되지 않으면
+잘못된 GPU 이미지를 받는 것을 막기 위해 오류와 함께 중단합니다.
 
 ---
 
-## 12단계 아키텍처
+## 11단계 아키텍처
 
 | 단계 | 레이어 | 핵심 컴포넌트 |
 |:---:|-------|------------|
 | 00 | HWI 어드바이저 | 하드웨어 자동 캘리브레이션, 튜닝 프로파일 생성 |
-| 00 | 시스템 기반 | 드라이버 설치, Docker, Node-RED |
+| 00 | 시스템 기반 | 드라이버 설치, Docker |
 | 01 | 인프라스트럭처 | Portainer, WebSSH |
 | 02 | 데이터베이스 | PostgreSQL 17, pgAdmin 4 |
 | 03 | AI 인터페이스 | Ollama, OpenWebUI, Redis |
@@ -105,7 +98,6 @@ sudo bash master-deploy.sh test
 | 08 | 백업 & 복구 | 원클릭 백업, 복원, VRAM 초기화 |
 | 09 | 모니터링 & 알림 | tiger-monitor, MQTT 알림 워크플로우 |
 | 10 | 가시성 | Grafana, Prometheus, Loki, cAdvisor |
-| 11 | 라이프사이클 | What's Up Docker (WUD) |
 
 ---
 
@@ -120,7 +112,6 @@ sudo bash master-deploy.sh test
 | pgAdmin | 8000 |
 | Qdrant | 6333 |
 | Ollama | 11434 |
-| WUD | 3838 |
 
 ---
 
@@ -128,10 +119,14 @@ sudo bash master-deploy.sh test
 
 ```
 deployments/
-├── amd-compose-stack/          # AMD ROCm 스택
-├── nvidia-compose-stack/       # NVIDIA CUDA 스택
-└── arm64-compose-stack/        # ARM64 스택
+├── tiger-deploy.sh             # 하드웨어 자동 감지
+└── compose-stack/
+    ├── lib/common.sh           # 공유 셸 라이브러리
+    ├── lib/log.sh              # 로깅과 색상 (부작용 없음)
+    ├── master-deploy.sh
+    ├── .env.{amd,nvidia,arm64}.example
     ├── 00-pre-flight-advisor/
+    ├── 00-system-setup-gpu-driver-and-docker/
     ├── 01-infra-webssh-portainer/
     ├── 02-database-postgres-pgadmin/
     ├── 03-ai-interface-ollama-openwebui-redis/
@@ -142,11 +137,7 @@ deployments/
     ├── 08-backup-recovery/
     ├── 09-monitoring-alerting/
     ├── 10-observability-grafana/
-    ├── 11-lifecycle-wud/
-    ├── 12-commercial-gateway/
-    ├── 13-landing-portal/
-    ├── master-deploy.sh
-    └── .env.example
+    └── migrations/
 ```
 
 ---

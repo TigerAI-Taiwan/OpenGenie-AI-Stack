@@ -1,0 +1,30 @@
+# =====================================================================
+# TigerAI RAG Stack — nvidia overlay
+# Path: deployments/compose-stack/05-rag-stack-docling-qdrant-mosquitto/docker-compose.nvidia.yaml
+#
+# Differences from base:
+#   1. GPU access for docling and qdrant: deploy.resources.reservations
+#      (driver: nvidia).
+#   2. docling image: the CUDA 12.8 build.
+#   3. qdrant image: the NVIDIA GPU build.
+# =====================================================================
+services:
+  docling:
+    image: ${DOCLING_IMAGE:-ghcr.io/docling-project/docling-serve-cu128:latest}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  qdrant:
+    image: ${QDRANT_IMAGE:-qdrant/qdrant:gpu-nvidia-latest}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

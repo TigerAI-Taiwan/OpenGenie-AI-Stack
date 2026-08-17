@@ -13,20 +13,19 @@
 
 ## 1. Overview
 
-OpenGenie AI Stack is a modular, self-hosted AI infrastructure framework for AMD, NVIDIA, and ARM64 hardware. It transforms a standard GPU server into a production-ready AI appliance through a structured 12-phase deployment methodology.
+OpenGenie AI Stack is a modular, self-hosted AI infrastructure framework for AMD, NVIDIA, and ARM64 hardware. It transforms a standard GPU server into a production-ready AI appliance through a structured 11-phase deployment methodology.
 
-Each phase is independently deployable and contains its own `deploy.sh` and `docker-compose.yaml`. Stacks are located under `deployments/`:
+Each phase is independently deployable and contains its own `deploy.sh` and, where it runs containers, a `docker-compose.base.yaml` plus a per-platform overlay. One stack serves all three platforms; the target is selected at run time by `TIGER_PLATFORM`:
 
 ```
 deployments/
-├── amd-compose-stack/      # AMD ROCm GPU
-├── nvidia-compose-stack/   # NVIDIA CUDA GPU
-└── arm64-compose-stack/    # ARM64 (Apple Silicon / Ampere / Jetson)
+├── tiger-deploy.sh         # detects hardware, exports TIGER_PLATFORM
+└── compose-stack/          # AMD ROCm / NVIDIA CUDA / ARM64
 ```
 
 ---
 
-## 2. 12-Phase Architecture
+## 2. 11-Phase Architecture
 
 | Phase | Layer | Name | Core Components |
 |:------|:------|:-----|:----------------|
@@ -42,9 +41,6 @@ deployments/
 | **08** | Backup | Disaster Recovery | `backup-tigerai.sh`, `restore-tigerai.sh` — 1-click backup and restore |
 | **09** | Alert | Monitoring | `tiger-monitor.sh`, MQTT alert workflows — proactive health alerting |
 | **10** | Ops | Observability | Grafana, Prometheus, Loki, cAdvisor, DCGM — GPU telemetry and SLA dashboards |
-| **11** | Life | Lifecycle | What's Up Docker (WUD) — controlled container update management |
-| **12** | SaaS | Commercial Gateway | FastAPI bridge — OTA sync and license management (optional) |
-| **13** | Portal | Landing Portal | Landing page with system status and service links |
 
 ---
 
@@ -52,7 +48,6 @@ deployments/
 
 | Phase | Service | Default Port | Notes |
 |:------|:--------|:------------:|:------|
-| 00 | Node-RED (native) | 1880 | Admin automation agent, native install |
 | 01 | Portainer | 9000 | Container management UI |
 | 01 | WebSSH | 8888 | Browser-based terminal |
 | 02 | PostgreSQL | 5432 | Internal only (not exposed to host) |
@@ -64,9 +59,6 @@ deployments/
 | 05 | Docling | 5001 | Document processing API |
 | 05 | Mosquitto (MQTT) | 443 | IoT/monitoring message broker |
 | 10 | Grafana | 3000 | Observability dashboard |
-| 11 | WUD | 3838 | Container update manager |
-| 12 | Commercial Gateway | 5055 | Optional SaaS API bridge |
-| 13 | Landing Portal | 80 / 443 | Public-facing entry point |
 
 ---
 
@@ -117,10 +109,13 @@ All services share a single Docker bridge network: `ai_stack_net`
 
 ---
 
-## 8. Per-Stack References
+## 8. Platform-Specific Details
 
-For stack-specific details (driver versions, GPU runtime config, platform notes):
+Driver versions, GPU runtime config and platform notes live with the code
+rather than in separate per-stack documents:
 
-- AMD: `deployments/amd-compose-stack/README.md`
-- NVIDIA: `deployments/nvidia-compose-stack/SDD.md`
-- ARM64: `deployments/arm64-compose-stack/SDD.md`
+- Host setup: `deployments/compose-stack/00-system-setup-gpu-driver-and-docker/resource/<platform>/install.sh`
+- GPU access and images: each module's `docker-compose.<platform>.yaml`
+- Platform-specific checks: `resource/<platform>/` under `07`, `08` and `09`
+
+Upgrading from v2.x (three per-platform stacks): `docs/MIGRATION.md`.

@@ -92,18 +92,52 @@ Combine these results with `.agent-state.json` to identify your exact state belo
    ls .env 2>/dev/null && echo "ENV_EXISTS" || echo "ENV_MISSING"
    ```
 
-   If `ENV_MISSING`, copy the template:
+   If `ENV_MISSING`, copy the template matching the detected platform:
    ```bash
-   cp .env.example .env
+   cd deployments/compose-stack
+   cp .env.${TIGER_PLATFORM}.example .env
    ```
-   > ⚠️ **nvidia-compose-stack and arm64-compose-stack do NOT have a root-level `.env.example`.** The per-stack env layout differs from AMD and is not finalized yet (AMD aggregates everything at the root; NVIDIA/ARM ship per-module `.env.example` files in some sub-directories, but the field coverage is incomplete). For now, if you are on NVIDIA or ARM, **stop here and ask the user how to bootstrap `.env`** — do NOT copy AMD's root template across stacks (variable shapes differ, e.g. ROCm vs CUDA fields). This will be resolved when the per-module env structure is finalized.
+   > All three platforms now ship a complete root-level template
+   > (`.env.amd.example` / `.env.nvidia.example` / `.env.arm64.example`).
+   > ⚠️ **Do not merge them or copy one platform's file to another.** They
+   > define different keys, and some keys must be *absent* rather than empty
+   > on a given platform — `--env-file` feeds the whole file to compose, so a
+   > merged file would hand every platform's keys to all of them.
+
+   **Step 2.1: Pre-installation Port Conflict Probing & GHCR Fallback (MANDATORY BEFORE USER PAUSE):**
+   Immediately after creating `.env`, the agent **MUST** run port conflict probing and image fallback checks BEFORE instructing the user to edit `.env`:
+
+   ```bash
+   # 1. Probe all target ports on host (8080, 9000, 8000, 5432, 5678, 6333, 11434, 3000, 5001, 443)
+   for p in 8080 9000 8000 5432 5678 6333 11434 3000 5001 443; do
+     if lsof -i :$p >/dev/null 2>&1 || ss -tulpn | grep -q ":$p "; then
+       echo "PORT_BUSY: $p"
+     else
+       echo "PORT_FREE: $p"
+     fi
+   done
+   ```
+   If any port is occupied, automatically increment the setting in `.env` to **`Port + 1`** (or `Port + N`) until free.
+
+   > ⚠️ **Zero-Excuse Rule for Port Audit Handoff:**
+   > If tool execution is restricted or requires interactive sudo, the agent MUST NOT make excuses or skip the report. The agent MUST (1) read kernel socket tables `/proc/net/tcp` and `/proc/net/tcp6` to audit open ports non-intrusively, and (2) explicitly hand off the exact `sudo lsof -i :8080 -i :9000 ...` command to the user, displaying a detailed Port Scan Table in the response.
+
+   ```bash
+   # 2. Ensure valid OpenWebUI image tag in .env (GHCR: ghcr.io/open-webui/open-webui:main, or Docker Hub fallback: openwebui/open-webui:latest)
+   # CRITICAL: NEVER set OWUI_IMAGE=openwebui/open-webui:main (docker.io tag :main does not exist and causes image pull failure).
+   sed -i 's|^OWUI_IMAGE=.*|OWUI_IMAGE=ghcr.io/open-webui/open-webui:main|' .env 2>/dev/null || true
+   if ! grep -q "OWUI_IMAGE" .env; then
+     echo "OWUI_IMAGE=ghcr.io/open-webui/open-webui:main" >> .env
+   fi
+   ```
 
    Now scan for all fields that still need values:
    ```bash
    grep "CHANGE_ME" .env
    ```
 
-   **STOP. Print this exact message to the user and wait:**
+   **STOP. Print the Pre-flight Diagnostic Report (Port status table & hardware summary) AND this exact message to the user, then wait:**
+
 
    ---
    🔑 **I need you to set up credentials in `.env` before deployment.**
@@ -251,6 +285,16 @@ Combine these results with `.agent-state.json` to identify your exact state belo
    > 🗂️ **Legacy-clone fallback:** Pre-fix clones had a path mismatch — `deploy.sh` wrote `../tiger-tuning.env` relative to the *caller's* `$PWD` (landing at `deployments/tiger-tuning.env`), and `amd/nvidia` `master-deploy.sh` read `./00-pre-flight-advisor/tiger-tuning.env`. Symptom: the line `[Master WARN] Detected [Conservative (Conservative)] mode` at the top of `init` output, and `master-deploy.sh app` silently using CONSERVATIVE despite the user picking another profile. Current `main` fixes both sides — advisor self-locates via `BASH_SOURCE` and writes to `<stack>/tiger-tuning.env`; all `master-deploy.sh` read the same path. If working from an older clone, the tuning file is a gitignored runtime output, so the legal recovery is `cp deployments/tiger-tuning.env <stack>/tiger-tuning.env` — do NOT edit the scripts; pull the fix instead.
 
    > 💡 **AMD-stack note:** It is normal for `TIGER_GPU_TYPE=Unknown` / `TIGER_VRAM=0` on AMD hosts because `deploy.sh` relies on `rocm-smi`, which is not installed on the host (ROCm runs inside containers via `/dev/kfd` + `/dev/dri`). This does NOT block deployment.
+
+5.5 **Pre-installation Port Conflict Probing (MANDATORY):**
+    Before executing `master-deploy.sh all`, inspect host listening ports for conflicts with all `.env` port settings (e.g. `8080`, `9000`, `8000`, `5432`, `5678`, `6333`, `11434`, `3000`, `5001`).
+    ```bash
+    # Check target ports on host
+    for p in 8080 9000 8000 5432 5678 6333 11434 3000 5001; do
+      (sudo lsof -i :$p || ss -tulpn | grep -q ":$p ") && echo "PORT_BUSY: $p"
+    done
+    ```
+    If any port is already occupied, automatically increment the corresponding port setting in `.env` to **`Port + 1`** (e.g., `8080` → `8081`). If `8081` is also occupied, continue incrementing (`Port + 2`, `Port + 3`, etc.) until an available port is found before proceeding to container startup.
 
 6. Update state and deploy the full application stack:
    ```bash

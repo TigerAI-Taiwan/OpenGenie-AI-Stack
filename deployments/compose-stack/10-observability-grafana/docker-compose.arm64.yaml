@@ -1,0 +1,53 @@
+# =====================================================================
+# TigerAI Observability — arm64 overlay
+# Path: deployments/compose-stack/10-observability-grafana/docker-compose.arm64.yaml
+#
+# Differences from base:
+#   1. gpu-exporter: the whole service. NVIDIA uses DCGM; AMD uses ROCm's
+#      device-metrics-exporter. They share a name and nothing else — different
+#      image, port, healthcheck, GPU access and privilege model — so the
+#      service is defined per platform rather than patched in an overlay.
+#   2. prometheus and grafana provisioning mounts point at resource/arm64/.
+# =====================================================================
+services:
+  prometheus:
+    volumes:
+      - ./resource/arm64/prometheus.yml:/etc/prometheus/prometheus.yml
+
+  grafana:
+    volumes:
+      - ./resource/arm64/grafana/provisioning:/etc/grafana/provisioning
+
+  gpu-exporter:
+    image: ${DCGM_EXPORTER_IMAGE:-nvcr.io/nvidia/k8s/dcgm-exporter:4.5.2-4.8.1-ubuntu22.04}
+    container_name: gpu-exporter
+    restart: always
+    # dcgm-exporter 4.x images default to a non-root user, but the embedded
+    # nv-hostengine needs root to watch GPU fields ("Host engine is running
+    # as non-root" restart loop otherwise). SYS_ADMIN enables profiling metrics.
+    user: root
+    cap_add:
+      - SYS_ADMIN
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/9400"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - ai_stack_net
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
+

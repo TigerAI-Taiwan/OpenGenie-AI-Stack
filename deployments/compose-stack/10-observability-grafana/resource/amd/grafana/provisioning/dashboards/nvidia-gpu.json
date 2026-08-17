@@ -1,0 +1,132 @@
+{
+    "title": "AMD GPU Monitoring",
+    "tags": [
+        "gpu",
+        "amd",
+        "rocm"
+    ],
+    "timezone": "browser",
+    "panels": [
+        {
+            "id": 1,
+            "title": "GPU Utilization",
+            "type": "timeseries",
+            "gridPos": {
+                "h": 8,
+                "w": 12,
+                "x": 0,
+                "y": 0
+            },
+            "targets": [
+                {
+                    "expr": "avg by (gpu_id) (gpu_gfx_activity{job=\"gpu-metrics\"})",
+                    "legendFormat": "GPU {{gpu_id}}",
+                    "refId": "A"
+                }
+            ],
+            "datasource": {
+                "type": "prometheus",
+                "uid": "PBFA97CFB590B2093"
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "percent",
+                    "max": 100,
+                    "min": 0
+                },
+                "overrides": []
+            }
+        },
+        {
+            "id": 2,
+            "title": "GPU Memory Usage",
+            "type": "timeseries",
+            "gridPos": {
+                "h": 8,
+                "w": 12,
+                "x": 12,
+                "y": 0
+            },
+            "targets": [
+                {
+                    "expr": "100 * (avg by (gpu_id) (gpu_used_vram{job=\"gpu-metrics\"}) / clamp_min(avg by (gpu_id) (gpu_total_vram{job=\"gpu-metrics\"}), 1))",
+                    "legendFormat": "GPU {{gpu_id}}",
+                    "refId": "A"
+                }
+            ],
+            "datasource": {
+                "type": "prometheus",
+                "uid": "PBFA97CFB590B2093"
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "percent",
+                    "max": 100,
+                    "min": 0
+                },
+                "overrides": []
+            }
+        },
+        {
+            "id": 3,
+            "title": "GPU Temperature",
+            "type": "timeseries",
+            "gridPos": {
+                "h": 8,
+                "w": 12,
+                "x": 0,
+                "y": 8
+            },
+            "targets": [
+                {
+                    "expr": "avg by (gpu_id) (gpu_edge_temperature{job=\"gpu-metrics\"})",
+                    "legendFormat": "GPU {{gpu_id}}",
+                    "refId": "A"
+                }
+            ],
+            "datasource": {
+                "type": "prometheus",
+                "uid": "PBFA97CFB590B2093"
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "celsius"
+                },
+                "overrides": []
+            }
+        },
+        {
+            "id": 4,
+            "title": "GPU Power",
+            "type": "timeseries",
+            "gridPos": {
+                "h": 8,
+                "w": 12,
+                "x": 12,
+                "y": 8
+            },
+            "targets": [
+                {
+                    "expr": "avg by (gpu_id) (gpu_average_package_power{job=\"gpu-metrics\"})",
+                    "legendFormat": "GPU {{gpu_id}}",
+                    "refId": "A"
+                }
+            ],
+            "datasource": {
+                "type": "prometheus",
+                "uid": "PBFA97CFB590B2093"
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "unit": "watt"
+                },
+                "overrides": []
+            }
+        }
+    ],
+    "templating": {
+        "list": []
+    },
+    "schemaVersion": 39,
+    "version": 2
+}

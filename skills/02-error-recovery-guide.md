@@ -53,23 +53,20 @@ This happens when old drivers conflict, or the `nouveau` open-source driver is a
    ```
 4. Re-run Phase 00 to let it cleanly regenerate the NVIDIA Container Toolkit config.
 
-## 4. Port Conflicts during App Deployment
-**Symptom:** `docker compose` fails with `Bind for 0.0.0.0:8080 failed: port is already allocated` or similar.
-**Recovery Strategy:**
-1. Identify the rogue process occupying the port (e.g., 8080 or 5432):
+## 4. Port Conflicts (Pre-installation Probing & Runtime Recovery)
+**Symptom:** `docker compose` fails with `Bind for 0.0.0.0:8080 failed: port is already allocated` or port conflict detected prior to deployment.
+**Proactive & Reactive Strategy:**
+1. **Pre-installation Check:** Before launching containers, probe all configured ports in `.env` (`8080`, `9000`, `8000`, `5432`, `5678`, `6333`, `11434`, `3000`, `5001`, etc.):
    ```bash
-   sudo lsof -i :8080
-   sudo netstat -tulpn | grep :8080
+   sudo lsof -i :8080 || ss -tulpn | grep :8080
    ```
-2. **If the process is a idle/orphan/residual process:**
-   Safely kill it (`sudo kill -9 <PID>`) and retry deployment.
-3. **If the process is an active, existing service belonging to the user:**
-   (e.g., the user already has a Postgres database, Redis, or Portainer running on that port).
-   **DO NOT SILENTLY OVERRIDE OR KILL IT.** You MUST pause deployment, alert the user of the conflict, and explicitly offer them the following choices:
-   - **Option A (Coexist - Port+1 Strategy):** Shift our new container's port to `Port+1` (e.g., create/modify `.env` with `PORTAINER_PORT=9001`) so both services can run simultaneously.
-   - **Option B (Reuse Existing):** Do not deploy our version of the container, and instead configure the rest of our AI stack to connect to the user's existing service (by updating DB connection strings in our `.env` files).
-   - **Option C (Takeover):** Ask the user if it's safe to kill the old service so our stack can occupy the default port.
-4. **Wait for the user's explicit decision** before taking action and continuing with `sudo ./master-deploy.sh app`.
+2. **Auto Port + 1 Strategy:**
+   If a port is already occupied by a host process or service, automatically update the corresponding port variable in `.env` to **`Port + 1`** (e.g. if `8080` is in use, increment `OWUI_PORT` to `8081`).
+3. Verify that the new port (`Port + 1`) is available. If `Port + 1` is also in use, continue incrementing (`Port + 2`, `Port + 3`, etc.) until an available open port is found.
+4. Update `.env` with the new free port, inform the user of the re-mapped port, and proceed with deployment:
+   ```bash
+   sudo TIGER_PLATFORM=<platform> bash master-deploy.sh all
+   ```
 
 ## 5. Script Not Executable / `command not found` / `Permission denied`
 **Symptom:** Running `./master-deploy.sh system` (or any other `./xxx.sh` in the project) returns:
@@ -93,3 +90,12 @@ This works for every `.sh` in the project (`master-deploy.sh`, `deploy.sh`, etc.
 **Recovery Strategy:**
 1. Network hiccups happen. Simply execute the command again. Docker will resume the layer download from where it failed.
 2. `sudo ./master-deploy.sh app` is idempotent. Running it multiple times is safe.
+
+## 7. OpenWebUI Image Reference Resolution Error (`docker.io/openwebui/open-webui:main: not found`)
+**Symptom:** `Error response from daemon: failed to resolve reference "docker.io/openwebui/open-webui:main": docker.io/openwebui/open-webui:main: not found`
+**Cause:** Setting `OWUI_IMAGE=openwebui/open-webui:main` in `.env` causes Docker Compose to prefix `docker.io/`, but Docker Hub does not have a `:main` tag for OpenWebUI.
+**Recovery Strategy:**
+1. For GitHub Container Registry (GHCR): Set `OWUI_IMAGE=ghcr.io/open-webui/open-webui:main` in `.env`.
+2. For Docker Hub fallback: Set `OWUI_IMAGE=openwebui/open-webui:latest` in `.env`.
+3. Never use `openwebui/open-webui:main` without `ghcr.io/`.
+

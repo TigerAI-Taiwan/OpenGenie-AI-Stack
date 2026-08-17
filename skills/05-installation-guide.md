@@ -14,11 +14,13 @@ You must operate as a strict **State Machine**, performing safe system probes, v
            │
 [Step 2: Environment Bootstrap] ──→ Copy .env, securely prompt user to configure credentials
            │
-[Step 3: Driver & Docker Setup] ──→ Install Docker and GPU toolkits; initiate reboot if needed
+[Step 3: Pre-installation Port Check] ──→ Probe target ports (8080, 9000, 5432, 8000, 5678, etc.); if occupied, auto-increment in .env (Port + 1)
            │
-[Step 4: Hardware Calibration] ──→ Run HWI Advisor, select profile (Conservative/Balanced/Optimal)
+[Step 4: Driver & Docker Setup] ──→ Install Docker and GPU toolkits; initiate reboot if needed
            │
-[Step 5: Full Stack Deployment] ──→ Start all 12-phase containers and verify service health
+[Step 5: Hardware Calibration] ──→ Run HWI Advisor, select profile (Conservative/Balanced/Optimal)
+           │
+[Step 6: Full Stack Deployment] ──→ Start all 11-phase containers and verify service health
 ```
 
 ---
@@ -34,9 +36,11 @@ uname -m
 # Detect GPU type
 lspci | grep -iE 'vga|3d|display' | grep -iE 'nvidia|amd|radeon|intel'
 ```
-*   **NVIDIA Host (x86_64)** → Use `deployments/nvidia-compose-stack`
-*   **AMD ROCm Host (x86_64)** → Use `deployments/amd-compose-stack`
-*   **ARM64 NVIDIA/Generic Host** → Use `deployments/arm64-compose-stack`
+*   **NVIDIA Host (x86_64)** → `TIGER_PLATFORM=nvidia`
+*   **AMD ROCm Host (x86_64)** → `TIGER_PLATFORM=amd`
+*   **ARM64 NVIDIA/Generic Host** → `TIGER_PLATFORM=arm64`
+
+All three deploy from the same `deployments/compose-stack/`.
 
 ### Action B: Secure Credentials Configuration
 Copy the template and check for placeholder secrets:
@@ -46,6 +50,22 @@ grep "CHANGE_ME" .env
 ```
 > [!IMPORTANT]
 > **Zero-Leak Secret Rule**: Never write passwords using `sed` or terminal commands. Instruct the user to open and edit the `.env` file directly to prevent credentials from leaking into bash history.
+
+### Action B.1: Pre-installation Port Conflict Probing
+Before launching deployment scripts, the agent **MUST** inspect the host's listening ports against all configured service ports in `.env`:
+```bash
+# Probing default stack ports (8080, 9000, 8000, 5432, 5678, 6333, 11434, 3000, 5001, etc.)
+for port in 8080 9000 8000 5432 5678 6333 11434 3000 5001; do
+  if lsof -i :$port >/dev/null 2>&1 || ss -tulpn | grep -q ":$port "; then
+    echo "PORT_OCCUPIED: $port"
+  fi
+done
+```
+**Port Auto-Increment Strategy (Port + 1)**:
+If any target port is already occupied by a host service or external process, the agent **MUST** automatically increment the corresponding port variable in `.env` to **`Port + 1`** (e.g., if `8080` is in use, change `OWUI_PORT=8080` → `OWUI_PORT=8081`). If `8081` is also occupied, continue incrementing (`Port + 2`, `Port + 3`, etc.) until a free port is found before proceeding to `master-deploy.sh all`.
+
+> [!IMPORTANT]
+> **Zero-Excuse Communication Rule**: If automated port inspection tools cannot execute directly in background, NEVER make excuses or skip communication. The agent MUST non-intrusively parse `/proc/net/tcp` & `/proc/net/tcp6` AND present the explicit user-run command (`sudo lsof -i :8080 ...`) in the chat for complete transparency.
 
 ### Action C: Orchestrated Deployment Execution
 Always run the deployment steps in order:
@@ -61,3 +81,4 @@ Always run the deployment steps in order:
 *   **GHCR Rate Limits (Denied Pulls)**: If `ghcr.io/open-webui/open-webui` fails with a `denied: denied` response, immediately switch the image to the official Docker Hub equivalent: `openwebui/open-webui:latest` in `.env`.
 *   **Permission Denied**: Project scripts are tracked without the Git executable bit. Always execute using explicit shell wrappers: `sudo bash master-deploy.sh <action>`.
 *   **Docker Daemon Inactive**: If Docker fails to respond after driver installation, run `sudo systemctl restart docker` and wait 10 seconds before continuing.
+*   **Port Conflicts**: If a service port is occupied (`port is already allocated`), automatically increment the port setting in `.env` by +1 (e.g. `8080` → `8081`) until an available port is found, then retry deployment.

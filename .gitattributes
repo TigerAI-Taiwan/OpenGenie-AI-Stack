@@ -1,0 +1,44 @@
+# =====================================================================
+# Line-ending policy: LF everywhere in the repository.
+#
+# Why this file exists — CRLF has caused real breakage here, not
+# hypothetical breakage:
+#
+#   1. Deployment targets are Linux. A .sh file with CRLF fails at the
+#      shebang line, because the kernel reads the interpreter path as
+#      "/usr/bin/env bash\r" and cannot find it.
+#   2. A CRLF in an env value leaks the \r into container environment
+#      variables. PG_USER=adm\r makes pg_isready -U $'adm\r' hang until
+#      it times out; a POSTGRES_PASSWORD with \r is written into initdb
+#      and every service that authenticates against it fails, with no
+#      visible cause.
+#   3. The evidence is in the tree: roughly 120 defensive `sed 's/\r//g'`
+#      / `tr -d '\r'` lines across the deploy scripts, plus three
+#      dedicated fix-sh-format.sh helpers. Those were added after the
+#      fact, not as a precaution.
+#   4. Mixed endings destroy cross-stack diffs. Comparing the same file
+#      between the amd / nvidia / arm64 stacks reports *every* line as
+#      changed, burying the real platform differences.
+#
+# NOTE: this policy covers version-controlled files only. The runtime
+# env files (<stack>/.env, <module>/.env, tiger-tuning.env) are
+# gitignored — a user may still paste CRLF into them from Windows or
+# SMB, so the defensive \r stripping in the deploy scripts must stay.
+# Do not treat it as dead code after normalization.
+# =====================================================================
+
+* text=auto eol=lf
+
+# Binary files must be excluded from EOL conversion. The repository
+# currently tracks none, but `text=auto` corrupts any binary it
+# misdetects as text, so the guard is kept ahead of need.
+*.pdf   binary
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.zip   binary
+*.gz    binary
+*.woff  binary
+*.woff2 binary
