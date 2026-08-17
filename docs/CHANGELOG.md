@@ -1,5 +1,16 @@
 # Changelog
 
+## [v3.1.0] - 2026-08-18
+
+- n8n：`N8N_SECRET` 更名為 `N8N_ENCRYPTION_KEY`，compose 端保留舊名 fallback 以免無聲換掉金鑰。
+- n8n：以佔位值 `CHANGE_ME` 或未設定金鑰時，`deploy.sh` 拒絕啟動容器（`down` 不受影響）。
+- 備份還原：解壓前先清空目標目錄，附五層防呆與 `--no-clean` 逃生口。
+- 備份：`tar --sparse`，Qdrant 稀疏檔不再於還原時膨脹（實測 3.9 MB → 1.2 GB）。
+- 健康檢查：`curl -sL` 跟隨轉址，Portainer 埠改讀 `PORTAINER_PORT`。
+- 備份／還原／排程三支腳本補上執行權限。
+- **破壞性變更**：`.env` 必須更名 n8n 金鑰，升級請見[遷移指南](MIGRATION.md)第 9、10 節。
+- [Full Release Note](v3.1.0/RELEASE-NOTE.md)
+
 ## [v3.0.0] - 2026-08-13
 
 - 三份平台 compose stack 合併為單一 `deployments/compose-stack/`，以 `TIGER_PLATFORM` 選擇平台。

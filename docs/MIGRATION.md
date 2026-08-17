@@ -1,6 +1,8 @@
-# Migration guide — v2.0.0 to v3.0.0
+# Migration guide — v2.0.0 to v3.1.0
 
-**Applies to:** upgrading an existing v2.x install to **v3.0.0**.
+**Applies to:** upgrading an existing v2.x install to **v3.1.0**.
+Coming from v3.0.0 instead? Only sections 9 and 10 apply to you; both shipped
+in v3.1.0 and section 9 stops n8n from deploying until you act.
 **Fresh installs do not need this document** — follow the README instead.
 
 The three deployment stacks (`amd-compose-stack`, `nvidia-compose-stack`,
@@ -8,7 +10,7 @@ The three deployment stacks (`amd-compose-stack`, `nvidia-compose-stack`,
 The platform is now selected at run time by `TIGER_PLATFORM` instead of by
 which directory you deploy from.
 
-v3.0.0 is a **breaking** release. Eight changes need action on an existing
+Both releases are **breaking**. Eight changes need action on an existing
 machine. The rows in bold stop something from working until you act:
 
 | # | Change | Action required |
