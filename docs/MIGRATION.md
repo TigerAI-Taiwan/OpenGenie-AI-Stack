@@ -8,8 +8,8 @@ The three deployment stacks (`amd-compose-stack`, `nvidia-compose-stack`,
 The platform is now selected at run time by `TIGER_PLATFORM` instead of by
 which directory you deploy from.
 
-v3.0.0 is a **breaking** release. Six changes need action on an existing
-machine, and two of them stop services from working until you act:
+v3.0.0 is a **breaking** release. Eight changes need action on an existing
+machine. The rows in bold stop something from working until you act:
 
 | # | Change | Action required |
 |:-:|---|---|
@@ -19,9 +19,41 @@ machine, and two of them stop services from working until you act:
 | 4 | **MQTT requires authentication** | **Set `MQTT_USERNAME` / `MQTT_PASSWORD` or MQTT stops working** |
 | 5 | env file precedence reversed | Check for keys defined in two places |
 | 6 | `.env.example` is per platform | Copy the one matching your hardware |
+| 7 | **`N8N_SECRET` renamed, and a placeholder key now blocks deployment** | **Rename it to `N8N_ENCRYPTION_KEY` in `.env` (same value) — n8n refuses to deploy until you do** |
+| 8 | Restore empties the target directory before extracting | Read section 10 before your next restore |
 
 Back up before you start. Every section below is ordered so you can work
 straight down the page.
+
+---
+
+## Your old `.env` will not work as-is — this is mandatory, not optional
+
+**Editing `.env` is a required step of this upgrade.** Carrying your v2 `.env`
+over unchanged is not a supported configuration: one key has been renamed and the
+deployer refuses to start until you rename it, and two more must be given real
+values or the services they configure come up wrong.
+
+`.env` is not in version control, so **nothing about this upgrade can edit it for
+you.** Updating `.env.example` does not touch the file on your machine. Every row
+below is a change you make by hand:
+
+| Key in your `.env` | What to do | Why | Section |
+|---|---|---|:-:|
+| `N8N_SECRET` | **Rename to `N8N_ENCRYPTION_KEY`, keep the value identical, delete the old line** | **`deploy.sh` refuses to run otherwise** | 9 |
+| `MQTT_USERNAME`, `MQTT_PASSWORD` | **Add, with real values** | **The broker now authenticates; leaving them unset ships a password published in this document** | 4 |
+| `LANDING_LOCAL_MQTT_HOST` / `_PORT` / `_USER` / `_PASSWORD` | Rename to `MQTT_HOST` / `MQTT_PORT` / `MQTT_USERNAME` / `MQTT_PASSWORD` | The old names are no longer read at all | 4 |
+| `OWUI_UVICORN_WORKERS` | Add — this is how OpenWebUI scales now | Scaling by container count no longer works | 2 |
+| anything in `deployments/.env` | Move into `deployments/compose-stack/.env` | That file is gone | 5 |
+| any key set in both a module `.env` and the stack `.env` | Decide which one you meant | The precedence flipped: the module value now wins where it used to lose, **silently** | 5 |
+| the file as a whole | Start from `.env.<your platform>.example` and merge your values in | The examples are per platform now | 6 |
+
+> Do not put inline comments in `.env`. Compose's `--env-file` treats a `#` with
+> no preceding space as part of the value, while the shell's `source` tries to
+> execute it — the two halves of the stack then disagree about the value and only
+> one of them complains.
+
+Work through the sections named above for the details and the exact values.
 
 ---
 
@@ -32,7 +64,12 @@ straight down the page.
 sudo bash deployments/compose-stack/08-backup-recovery/resource/_shared/backup-tigerai.sh
 
 # 2. Check where your Ollama models are (see section 1)
-# 3. Merge your .env
+
+# 3. Edit .env — MANDATORY, see the table above. Start with the n8n key:
+grep -n 'N8N_SECRET\|N8N_ENCRYPTION_KEY' deployments/compose-stack/.env
+#    Rename it to N8N_ENCRYPTION_KEY with the SAME value, delete the old line.
+#    Then do the MQTT and OpenWebUI keys. Skipping this stops the deployment.
+
 # 4. Redeploy
 sudo -E bash deployments/tiger-deploy.sh
 sudo -E bash deployments/compose-stack/master-deploy.sh all
@@ -389,7 +426,147 @@ application would have kept writing during the dump. They now use
 
 ---
 
-## 9. Smaller behaviour changes
+## 9. The n8n encryption key was renamed, and a placeholder key now blocks deployment
+
+**Affects: everyone running n8n. n8n will refuse to deploy until you act.**
+
+Two things changed together. Read both before editing `.env` — doing this wrong
+makes every stored n8n credential permanently undecryptable.
+
+### `N8N_SECRET` is now `N8N_ENCRYPTION_KEY` — you must edit `.env`
+
+The variable held what n8n itself calls `N8N_ENCRYPTION_KEY`; carrying our own
+name for it was pure indirection.
+
+**This is a required `.env` edit. `deploy.sh` refuses to run while `.env` still
+uses the old name**, so this is not something you can postpone:
+
+```ini
+# deployments/compose-stack/.env
+
+# Before
+N8N_SECRET=<your key>
+
+# After — new name, SAME value, character for character
+N8N_ENCRYPTION_KEY=<your key>
+```
+
+The old name is not read by the deployer at all, so skipping this looks exactly
+like having set no key — which is the point. You get:
+
+```
+[TigerAI n8n ERROR] N8N_ENCRYPTION_KEY is not set, or is still the .env.example
+placeholder CHANGE_ME. …
+
+If .env still has N8N_SECRET, that is this key's former name: rename it to
+N8N_ENCRYPTION_KEY, keep the value EXACTLY as it is, and delete the old line.
+
+    -N8N_SECRET=<your current value>
+    +N8N_ENCRYPTION_KEY=<the same value, unchanged>
+```
+
+> **Never change the value while renaming.** The key decrypts every stored n8n
+> credential. A different value does not fail loudly: the container starts
+> normally, and the breakage surfaces days later, the first time a workflow
+> actually decrypts a credential. Copy, do not regenerate.
+
+Once you have renamed it, **delete the `N8N_SECRET` line.** Leaving both in
+place means two lines that must never disagree, and the old one has no reader
+left on a migrated machine.
+
+### Deploying with the placeholder key is now refused
+
+`CHANGE_ME` is a non-empty string, so `${VAR:-default}` never replaces it. Until
+now, a `.env` copied from the example and left unedited deployed happily and n8n
+encrypted every credential with the literal text `CHANGE_ME`.
+
+`04-automation-n8n/deploy.sh` now stops before doing anything:
+
+```
+[TigerAI n8n ERROR] N8N_ENCRYPTION_KEY = CHANGE_ME — that is the .env.example
+install placeholder, not a key.
+```
+
+This is a **new failure on machines that used to deploy**, which is the point —
+those machines were running on a publicly known key. It applies to `all`,
+`main`, `worker` and `restart`. **`down` is deliberately not guarded**, so a host
+in this state can still be stopped.
+
+**If you hit this, do not just invent a new key.** If n8n has already run here,
+the key it is actually using is on disk, and that is the one you need:
+
+```bash
+# (a) the key n8n is really using — written on first start, authoritative
+sudo grep -o '"encryptionKey":"[^"]*"' /home/wrt/TigerAI/node/n8n/config
+
+# (b) has anything been encrypted with it?
+docker exec postgres psql -U adm -d n8n -tAc 'SELECT count(*) FROM credentials_entity;'
+```
+
+| state | what to do |
+|---|---|
+| no `config` file — n8n never started here | free choice: `openssl rand -hex 32` |
+| `config` exists, (b) = 0 | a new key is safe, but **move the old `config` aside** or n8n refuses to start on the mismatch |
+| `config` exists, (b) > 0 | **do not change the key** — copy the value from (a) into `.env` verbatim |
+
+> Renaming the variable is not setting a key. Changing `.env` from
+> `N8N_SECRET=CHANGE_ME` to `N8N_ENCRYPTION_KEY=CHANGE_ME` changes nothing and
+> the guard still blocks — correctly.
+
+If (a) itself returns `CHANGE_ME` and (b) is greater than zero, you have
+credentials encrypted with the placeholder. That needs a key rotation (export
+decrypted, change the key, re-import); check the exact n8n CLI invocation
+against your own n8n version first.
+
+---
+
+## 10. Restore now empties the target directory before extracting
+
+**Affects: anyone who restores a backup. It changes what a restore does to data
+written after the backup was taken.**
+
+`tar -xzf` merges; it never deletes. A restore therefore used to leave a
+directory that was neither the backup nor the current state: files created after
+the backup survived alongside the restored ones. For Qdrant that is corruption
+rather than untidiness — collections and segment directories created after the
+backup stay on disk while the `config.json` restored over them knows nothing
+about them.
+
+`restore-tigerai.sh` now **empties each target directory before extracting its
+archive**, so the result is the backup and nothing else.
+
+**What this means in practice.** `DATA_DIRS` defaults to your whole `BASE_DIR`,
+so a default restore clears and rewrites all of `/home/wrt/TigerAI`. That is
+safe only because the backup excludes nothing — the archive covers everything
+under `BASE_DIR`, and Ollama's models live outside it in `/var/lib/ollama`.
+
+> **If you ever add an `--exclude` to `backup-tigerai.sh`, you must tighten the
+> restore guard in the same change.** The two are coupled: "clearing the whole
+> data root is safe" holds *only because* nothing is excluded. Adding an exclude
+> on its own turns restore into "wiped it, cannot put it back".
+
+To keep the old merging behaviour for one run:
+
+```bash
+sudo bash deployments/compose-stack/08-backup-recovery/resource/_shared/restore-tigerai.sh \
+  --no-clean 20260202_120000 data
+```
+
+Nothing is deleted blindly. Before clearing anything the script validates the
+archive (unreadable, empty, absolute-path members and `..` components are all
+rejected, each saying "nothing has been deleted yet"), and it refuses to clear a
+path that is not inside `BASE_DIR`, is too shallow, is on a never-clear list
+such as `/`, `/home` or `/var/lib`, is a symlink, or contains the stack or the
+backups themselves. A path it will not clear is extracted over instead, with a
+warning — it degrades to the old behaviour rather than guessing.
+
+`clear_dir_contents` removes the directory's *contents*, never the directory,
+because the services care about the mount point's ownership and mode and a bind
+mount still points at it.
+
+---
+
+## 11. Smaller behaviour changes
 
 - **`01-infra` `all` no longer force-recreates containers.** The NVIDIA stack
   used to run `down` followed by `up -d --force-recreate` on every invocation.
@@ -404,7 +581,7 @@ application would have kept writing during the dump. They now use
 
 ---
 
-## 10. Fixes you get for free
+## 12. Fixes you get for free
 
 These were broken before the merge and are fixed by it. No action needed.
 
@@ -419,10 +596,23 @@ These were broken before the merge and are fixed by it. No action needed.
   alerted on.
 - **On NVIDIA the backup and recovery scripts were never made executable**,
   because that stack shipped no `deploy.sh` for phase 08.
+- **Backups of Qdrant no longer inflate on restore.** Qdrant's segment files are
+  sparse; `tar` without `--sparse` reads every hole as real zero bytes, so a
+  1.2 GB restore came out of 3.9 MB of actual data. Backups taken from now on
+  record the holes. **Archives created before this change stay inflated** —
+  sparseness is archive metadata, so extracting an old archive cannot recover it.
+  Reclaim the space on an already-restored file with
+  `sudo fallocate --dig-holes <file>`.
+- **The health check follows redirects and reads `PORTAINER_PORT`.** It used
+  `curl -s`, so any redirecting endpoint reported `302` and every caller had to
+  spell out `"200|302"`; and the Portainer probe was the last place still
+  hardcoding port 9000 while `PORTAINER_PORT` was honoured everywhere else. If
+  you added your own `check_endpoint` calls, make sure none of them expects a
+  bare `"302"` — with redirects followed, that can no longer match.
 
 ---
 
-## 11. Known issue: VRAM purge and Lemonade
+## 13. Known issue: VRAM purge and Lemonade
 
 Not fixed by this migration, and worth knowing about:
 
@@ -448,3 +638,14 @@ and `/var/lib/ollama` are all untouched by the upgrade, so a rollback does not
 lose data — but if you have run OpenWebUI on the new topology, its database has
 been migrated forward and may not be readable by an older OpenWebUI image.
 Restore from the backup you took in step 1 if that happens.
+
+Two things to know before you run that restore:
+
+- **It now empties each target directory first** (section 10). That is what makes
+  the result match the backup exactly, but anything written since the backup is
+  gone. Pass `--no-clean` if you deliberately want the old merging behaviour.
+- **Docker named volumes are not in the backup at all** — only bind mounts under
+  `BASE_DIR` are. `pgdata` is covered indirectly by the PostgreSQL dumps, but
+  Grafana dashboards (`grafana_data`) and OpenWebUI uploads (`openwebui_data`)
+  have no other source. Export anything you cannot lose from those before a
+  rollback.

@@ -111,9 +111,9 @@ force_stop_app() {
     LOG "Confirmed no n8n containers are running."
 }
 
-# --- 1) N8N_SECRET reminder (never touched by this script) ---
+# --- 1) N8N_ENCRYPTION_KEY reminder (never touched by this script) ---
 LOG "n8n DB isolation migration: ${SRC_DB}.${SRC_SCHEMA}  ->  dedicated '${DST_DB}' DB (public schema)"
-WARN "N8N_SECRET / N8N_ENCRYPTION_KEY MUST stay unchanged after this migration."
+WARN "N8N_ENCRYPTION_KEY MUST stay unchanged after this migration."
 WARN "It encrypts stored credentials; changing it makes them undecryptable. This script does NOT touch it."
 
 docker ps --format '{{.Names}}' | grep -qx "$PG_CONTAINER" \
@@ -249,5 +249,5 @@ LOG "Rollback: the old '${SRC_DB}.${SRC_SCHEMA}' schema is left INTACT."
 LOG "  • To roll back, set DB_POSTGRESDB_DATABASE=${SRC_DB} / DB_POSTGRESDB_SCHEMA=${SRC_SCHEMA} and redeploy."
 LOG "  • DROP the old schema ONLY after verifying the new DB in the n8n UI:"
 LOG "      docker exec -e PGPASSWORD=... ${PG_CONTAINER} psql -U ${PG_USER} -d ${SRC_DB} -c 'DROP SCHEMA ${SRC_SCHEMA} CASCADE;'"
-LOG "Reminder: keep N8N_SECRET / N8N_ENCRYPTION_KEY identical to pre-migration."
+LOG "Reminder: keep N8N_ENCRYPTION_KEY identical to pre-migration."
 LOG "Pre-migration snapshot: ${SNAP}"
