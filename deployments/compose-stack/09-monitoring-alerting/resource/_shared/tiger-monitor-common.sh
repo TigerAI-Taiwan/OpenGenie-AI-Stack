@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # =====================================================================
 # TigerAI Proactive Health Monitor (Unattended Ops) — shared body
-# Path: deployments/compose-stack/08-monitoring-alerting/resource/_shared/tiger-monitor-common.sh
+# Path: deployments/compose-stack/09-monitoring-alerting/resource/_shared/tiger-monitor-common.sh
 #
 # Sourced by resource/<platform>/tiger-monitor.sh. Defines
 # tiger_monitor_main() and does NOT call it — the entry point does, after

@@ -101,8 +101,8 @@ sudo -E bash deployments/compose-stack/master-deploy.sh test
 | 05 | RAG スタック | Qdrant、Docling、Mosquitto |
 | 06 | AI コアエンジン | Lemonade 推論エンジン |
 | 07 | バリデーション | ヘルスチェック、ベンチマークスクリプト |
-| 08 | 監視 & アラート | tiger-monitor、MQTT アラートワークフロー |
-| 09 | バックアップ & リカバリー | ワンクリックバックアップ、リストア、VRAM パージ |
+| 08 | バックアップ & リカバリー | ワンクリックバックアップ、リストア、VRAM パージ |
+| 09 | 監視 & アラート | tiger-monitor、MQTT アラートワークフロー |
 | 10 | 可観測性 | Grafana、Prometheus、Loki、cAdvisor |
 
 ---
@@ -140,8 +140,8 @@ deployments/
     ├── 05-rag-stack-docling-qdrant-mosquitto/
     ├── 06-ai-core-lemonade/
     ├── 07-validation-stack/
-    ├── 08-monitoring-alerting/
-    ├── 09-backup-recovery/
+    ├── 08-backup-recovery/
+    ├── 09-monitoring-alerting/
     ├── 10-observability-grafana/
     └── migrations/
 ```

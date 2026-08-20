@@ -98,8 +98,8 @@ sudo -E bash deployments/compose-stack/master-deploy.sh test
 | 05 | RAG 知識庫 | Qdrant、Docling、Mosquitto |
 | 06 | AI 核心引擎 | Lemonade 推論引擎 |
 | 07 | 驗收測試 | 健康檢查、效能基準腳本 |
-| 08 | 監控告警 | tiger-monitor、MQTT 告警流程 |
-| 09 | 備份與還原 | 一鍵備份、還原、VRAM 清除 |
+| 08 | 備份與還原 | 一鍵備份、還原、VRAM 清除 |
+| 09 | 監控告警 | tiger-monitor、MQTT 告警流程 |
 | 10 | 可觀測性 | Grafana、Prometheus、Loki、cAdvisor |
 
 ---
@@ -137,8 +137,8 @@ deployments/
     ├── 05-rag-stack-docling-qdrant-mosquitto/
     ├── 06-ai-core-lemonade/
     ├── 07-validation-stack/
-    ├── 08-monitoring-alerting/
-    ├── 09-backup-recovery/
+    ├── 08-backup-recovery/
+    ├── 09-monitoring-alerting/
     ├── 10-observability-grafana/
     └── migrations/
 ```

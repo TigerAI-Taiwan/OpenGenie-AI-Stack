@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # =====================================================================
 # TigerAI Proactive Health Monitor — amd entry point
-# Path: deployments/compose-stack/08-monitoring-alerting/resource/amd/tiger-monitor.sh
+# Path: deployments/compose-stack/09-monitoring-alerting/resource/amd/tiger-monitor.sh
 #
 # The entry point does four things and nothing else. Env loading, the SERVICES base
 # list, check_and_notify and the once/start/install dispatcher all live in the

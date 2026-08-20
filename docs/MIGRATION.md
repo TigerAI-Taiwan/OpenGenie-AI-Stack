@@ -1,10 +1,8 @@
-# Migration guide — v2.0.0 to v3.2.0
+# Migration guide — v2.0.0 to v3.1.0
 
-**Applies to:** upgrading an existing v2.x install to **v3.2.0**.
-Coming from v3.0.0 instead? Sections 9–11 apply to you. Sections 9 and 10
-shipped in v3.1.0; section 11 ships in v3.2.0. Section 9 stops n8n from
-deploying until you act.
-Coming from v3.1.0? Only section 11 applies to you.
+**Applies to:** upgrading an existing v2.x install to **v3.1.0**.
+Coming from v3.0.0 instead? Only sections 9 and 10 apply to you; both shipped
+in v3.1.0 and section 9 stops n8n from deploying until you act.
 **Fresh installs do not need this document** — follow the README instead.
 
 The three deployment stacks (`amd-compose-stack`, `nvidia-compose-stack`,
@@ -12,7 +10,7 @@ The three deployment stacks (`amd-compose-stack`, `nvidia-compose-stack`,
 The platform is now selected at run time by `TIGER_PLATFORM` instead of by
 which directory you deploy from.
 
-These releases are **breaking**. Nine changes need action on an existing
+Both releases are **breaking**. Eight changes need action on an existing
 machine. The rows in bold stop something from working until you act:
 
 | # | Change | Action required |
@@ -25,7 +23,6 @@ machine. The rows in bold stop something from working until you act:
 | 6 | `.env.example` is per platform | Copy the one matching your hardware |
 | 7 | **`N8N_SECRET` renamed, and a placeholder key now blocks deployment** | **Rename it to `N8N_ENCRYPTION_KEY` in `.env` (same value) — n8n refuses to deploy until you do** |
 | 8 | Restore empties the target directory before extracting | Read section 10 before your next restore |
-| 9 | Phase 08/09 module directories renamed | Re-run the maintenance cron installer; see section 11 |
 
 Back up before you start. Every section below is ordered so you can work
 straight down the page.
@@ -66,7 +63,7 @@ Work through the sections named above for the details and the exact values.
 
 ```bash
 # 1. Back up first. Do not skip this.
-sudo bash deployments/compose-stack/09-backup-recovery/resource/_shared/backup-tigerai.sh
+sudo bash deployments/compose-stack/08-backup-recovery/resource/_shared/backup-tigerai.sh
 
 # 2. Check where your Ollama models are (see section 1)
 
@@ -383,8 +380,8 @@ update an already-installed cron entry or unit file, and both will keep
 looking completely normal:
 
 ```bash
-sudo -E bash deployments/compose-stack/09-backup-recovery/deploy.sh
-sudo -E bash deployments/compose-stack/08-monitoring-alerting/deploy.sh
+sudo -E bash deployments/compose-stack/08-backup-recovery/deploy.sh
+sudo -E bash deployments/compose-stack/09-monitoring-alerting/deploy.sh
 ```
 
 ---
@@ -401,10 +398,10 @@ installing ROCm, CUDA on x86 and CUDA on aarch64 have little in common.
 | Was | Now |
 |---|---|
 | `07-validation-stack/check-health.sh` | `07-validation-stack/resource/_shared/check-health.sh` |
-| `08-backup-recovery/backup-tigerai.sh` | `09-backup-recovery/resource/_shared/backup-tigerai.sh` |
-| `08-backup-recovery/restore-tigerai.sh` | `09-backup-recovery/resource/_shared/restore-tigerai.sh` |
-| `08-backup-recovery/vram-purge.sh` | `09-backup-recovery/resource/_shared/vram-purge.sh` |
-| `09-monitoring-alerting/tiger-monitor.sh` | `08-monitoring-alerting/resource/_shared/tiger-monitor.sh` |
+| `08-backup-recovery/backup-tigerai.sh` | `08-backup-recovery/resource/_shared/backup-tigerai.sh` |
+| `08-backup-recovery/restore-tigerai.sh` | `08-backup-recovery/resource/_shared/restore-tigerai.sh` |
+| `08-backup-recovery/vram-purge.sh` | `08-backup-recovery/resource/_shared/vram-purge.sh` |
+| `09-monitoring-alerting/tiger-monitor.sh` | `09-monitoring-alerting/resource/_shared/tiger-monitor.sh` |
 | `05-rag-stack-.../monitor_device.py` | `05-rag-stack-.../resource/_shared/monitor_device.py` |
 | `10-observability-grafana/prometheus/prometheus-amd.yml` | `10-observability-grafana/resource/amd/prometheus.yml` |
 | `10-observability-grafana/grafana/provisioning/` | `10-observability-grafana/resource/<platform>/grafana/provisioning/` |
@@ -553,7 +550,7 @@ under `BASE_DIR`, and Ollama's models live outside it in `/var/lib/ollama`.
 To keep the old merging behaviour for one run:
 
 ```bash
-sudo bash deployments/compose-stack/09-backup-recovery/resource/_shared/restore-tigerai.sh \
+sudo bash deployments/compose-stack/08-backup-recovery/resource/_shared/restore-tigerai.sh \
   --no-clean 20260202_120000 data
 ```
 
@@ -571,46 +568,7 @@ mount still points at it.
 
 ---
 
-## 11. Phase 08/09 directories now match deployment order
-
-In v3.1 and earlier, the numbered directories and the actual `all` order
-disagreed: monitoring was Phase 09 but ran before Phase 08 backup/recovery.
-The directories have been renamed so the number, documentation and execution
-order now all read:
-
-```text
-07-validation-stack
-08-monitoring-alerting
-09-backup-recovery
-10-observability-grafana
-```
-
-This is a path-breaking change. If you invoke module scripts directly, update
-`08-backup-recovery` to `09-backup-recovery` and `09-monitoring-alerting` to
-`08-monitoring-alerting`.
-
-Existing hosts must reinstall both scheduled components:
-
-```bash
-TIGER_PLATFORM=<amd|nvidia|arm64> sudo -E bash \
-  deployments/compose-stack/08-monitoring-alerting/deploy.sh
-TIGER_PLATFORM=<amd|nvidia|arm64> sudo -E bash \
-  deployments/compose-stack/09-backup-recovery/deploy.sh cron
-```
-
-The monitoring reinstall rewrites the systemd unit's `ExecStart` path. The cron
-installer detects `08-backup-recovery` in the current crontab and rewrites it to
-`09-backup-recovery`, preserving any custom schedule and redirection. Verify the
-migration afterwards:
-
-```bash
-systemctl cat tiger-monitor.service
-crontab -l | grep vram-purge
-```
-
----
-
-## 12. Smaller behaviour changes
+## 11. Smaller behaviour changes
 
 - **`01-infra` `all` no longer force-recreates containers.** The NVIDIA stack
   used to run `down` followed by `up -d --force-recreate` on every invocation.
@@ -625,7 +583,7 @@ crontab -l | grep vram-purge
 
 ---
 
-## 13. Fixes you get for free
+## 12. Fixes you get for free
 
 These were broken before the merge and are fixed by it. No action needed.
 
@@ -656,7 +614,7 @@ These were broken before the merge and are fixed by it. No action needed.
 
 ---
 
-## 14. Known issue: VRAM purge and Lemonade
+## 13. Known issue: VRAM purge and Lemonade
 
 Not fixed by this migration, and worth knowing about:
 

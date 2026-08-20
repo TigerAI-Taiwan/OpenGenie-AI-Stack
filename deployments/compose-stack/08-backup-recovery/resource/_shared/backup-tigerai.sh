@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # =====================================================================
 # TigerAI Automated Backup (P1 Tier)
-# Path: deployments/compose-stack/09-backup-recovery/resource/_shared/backup-tigerai.sh
+# Path: deployments/compose-stack/08-backup-recovery/resource/_shared/backup-tigerai.sh
 #
 # 三平台共用一份（舊三份逐字相同，只差各自的 "# Path:" 檔頭）。備份內容沒有
 # 任何 GPU / 平台相依性 —— 就是 pg_dump + tar，所以放 _shared/。
@@ -15,7 +15,7 @@ set -eo pipefail
 
 # --- 0) Configuration ---
 # 路徑一律以本檔位置推導，不依賴 CWD（cron 起來時 CWD 是家目錄）。
-# 本檔位於 <stack>/09-backup-recovery/resource/_shared/，因此 ../.. 是模組目錄、
+# 本檔位於 <stack>/08-backup-recovery/resource/_shared/，因此 ../.. 是模組目錄、
 # ../../.. 是 stack 根目錄。
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MODULE_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"

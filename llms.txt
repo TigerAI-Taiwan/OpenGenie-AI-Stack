@@ -49,8 +49,8 @@ docker-compose.base.yaml plus a per-platform overlay.
 - [Phase 05 — RAG stack: Docling + Qdrant + Mosquitto MQTT](https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/tree/main/deployments/compose-stack/05-rag-stack-docling-qdrant-mosquitto)
 - [Phase 06 — AI core: Lemonade inference engine (amd only)](https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/tree/main/deployments/compose-stack/06-ai-core-lemonade)
 - [Phase 07 — Validation: health checks + benchmarks](https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/tree/main/deployments/compose-stack/07-validation-stack)
-- [Phase 08 — Monitoring & alerting: tiger-monitor + MQTT alerts](https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/tree/main/deployments/compose-stack/08-monitoring-alerting)
-- [Phase 09 — Backup & recovery: one-click snapshot + restore](https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/tree/main/deployments/compose-stack/09-backup-recovery)
+- [Phase 08 — Backup & recovery: one-click snapshot + restore](https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/tree/main/deployments/compose-stack/08-backup-recovery)
+- [Phase 09 — Monitoring & alerting: tiger-monitor + MQTT alerts](https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/tree/main/deployments/compose-stack/09-monitoring-alerting)
 - [Phase 10 — Observability: Grafana + Prometheus + Loki + cAdvisor + DCGM](https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/tree/main/deployments/compose-stack/10-observability-grafana)
 
 ## Default service ports

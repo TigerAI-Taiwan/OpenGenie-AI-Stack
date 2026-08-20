@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # =====================================================================
 # TigerAI Maintenance Cron Installer
-# Path: deployments/compose-stack/09-backup-recovery/resource/_shared/setup-cron.sh
+# Path: deployments/compose-stack/08-backup-recovery/resource/_shared/setup-cron.sh
 #
 # Called by deploy.sh's `cron` action, and runnable directly. vram-purge.sh is
 # platform-specific, so this file (in resource/_shared/) cannot resolve it:
@@ -47,16 +47,6 @@ chmod +x "$PURGE_SCRIPT"
 # No TIGER_PLATFORM in the cron line: it runs the platform entry point, which
 # exports the value itself (see the note above that export).
 CRON_JOB="0 5 * * * /bin/bash ${PURGE_SCRIPT} >> ${MODULE_DIR}/maintenance.log 2>&1"
-
-# Rewrite stale cron entries from the old module path (08-backup-recovery). Keep
-# the user's existing schedule and redirections intact; replacing the complete
-# line with CRON_JOB would unexpectedly reset custom schedules to 05:00.
-# `|| true` keeps us safe on a host with no crontab yet (crontab -l exits 1 there).
-if crontab -l 2>/dev/null | grep -q "08-backup-recovery"; then
-    LOG "Migrating cron path (08-backup-recovery → 09-backup-recovery)..."
-    (crontab -l 2>/dev/null || true) | \
-        sed 's#/08-backup-recovery/#/09-backup-recovery/#g' | crontab -
-fi
 
 if crontab -l 2>/dev/null | grep -q "$PURGE_SCRIPT"; then
     LOG "VRAM purge cron job already exists, skipping."

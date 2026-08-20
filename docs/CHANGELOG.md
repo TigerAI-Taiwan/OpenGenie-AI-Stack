@@ -1,14 +1,5 @@
 # Changelog
 
-## [v3.2.0] - 2026-08-20
-
-- **破壞性變更**：Phase 08／09 目錄更名為 `08-monitoring-alerting` 與 `09-backup-recovery`，讓編號、文件與實際部署順序一致。
-- `master-deploy.sh all` 維持 monitoring 先於 backup/recovery，現在 `DEPLOY_STEPS` 也按 00–10 遞增排列。
-- maintenance cron installer 會把既有 `08-backup-recovery` 絕對路徑改寫成 `09-backup-recovery`，保留自訂排程與輸出導向。
-- README、`llms.txt`、腳本 Path 註解與遷移指南同步新路徑。
-- 升級既有環境請見[遷移指南](MIGRATION.md)第 11 節。
-- [Full Release Note](v3.2.0/RELEASE-NOTE.md)
-
 ## [v3.1.0] - 2026-08-18
 
 - n8n：`N8N_SECRET` 更名為 `N8N_ENCRYPTION_KEY`，compose 端保留舊名 fallback 以免無聲換掉金鑰。
@@ -71,8 +62,6 @@
 - 更新部署、錯誤復原與完整清除指引。
 - [Full Release Note](v1.0.0/RELEASE-NOTE.md)
 
-[v3.2.0]: https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/compare/v3.1.0...v3.2.0
-[v3.1.0]: https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/compare/v3.0.0...v3.1.0
 [v3.0.0]: https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/compare/v2.0.0...v3.0.0
 [v2.0.0]: https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/compare/v1.3.0...v2.0.0
 [v1.3.0]: https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/compare/v1.2.1...v1.3.0

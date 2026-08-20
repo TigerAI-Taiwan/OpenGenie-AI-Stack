@@ -95,8 +95,8 @@ TIGER_PLATFORM=nvidia sudo -E bash \
 | 05 | RAG 스택 | Qdrant, Docling, Mosquitto |
 | 06 | AI 코어 엔진 | Lemonade 추론 엔진 |
 | 07 | 검증 | 헬스 체크, 벤치마크 스크립트 |
-| 08 | 모니터링 & 알림 | tiger-monitor, MQTT 알림 워크플로우 |
-| 09 | 백업 & 복구 | 원클릭 백업, 복원, VRAM 초기화 |
+| 08 | 백업 & 복구 | 원클릭 백업, 복원, VRAM 초기화 |
+| 09 | 모니터링 & 알림 | tiger-monitor, MQTT 알림 워크플로우 |
 | 10 | 가시성 | Grafana, Prometheus, Loki, cAdvisor |
 
 ---
@@ -134,8 +134,8 @@ deployments/
     ├── 05-rag-stack-docling-qdrant-mosquitto/
     ├── 06-ai-core-lemonade/
     ├── 07-validation-stack/
-    ├── 08-monitoring-alerting/
-    ├── 09-backup-recovery/
+    ├── 08-backup-recovery/
+    ├── 09-monitoring-alerting/
     ├── 10-observability-grafana/
     └── migrations/
 ```

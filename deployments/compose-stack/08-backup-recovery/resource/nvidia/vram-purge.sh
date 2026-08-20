@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # =====================================================================
 # TigerAI VRAM Purge & Service Refresh (Zero-Reboot Maintenance) — NVIDIA CUDA entry
-# Path: deployments/compose-stack/09-backup-recovery/resource/nvidia/vram-purge.sh
+# Path: deployments/compose-stack/08-backup-recovery/resource/nvidia/vram-purge.sh
 #
 # 入口只做兩件事，其餘全部留在共用主體裡（不要把路徑推導、compose 橋接、
 # Ollama 重啟複製過來）：

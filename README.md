@@ -102,8 +102,8 @@ sudo -E bash deployments/compose-stack/master-deploy.sh test
 | 05 | RAG Stack | Qdrant, Docling, Mosquitto |
 | 06 | AI Core Engine | Lemonade inference engine |
 | 07 | Validation | Health checks, benchmark scripts |
-| 08 | Monitoring & Alerts | tiger-monitor, MQTT alerting |
-| 09 | Backup & Recovery | 1-click backup, restore, VRAM purge |
+| 08 | Backup & Recovery | 1-click backup, restore, VRAM purge |
+| 09 | Monitoring & Alerts | tiger-monitor, MQTT alerting |
 | 10 | Observability | Grafana, Prometheus, Loki, cAdvisor |
 
 ---
@@ -142,8 +142,8 @@ deployments/
     ├── 05-rag-stack-docling-qdrant-mosquitto/
     ├── 06-ai-core-lemonade/
     ├── 07-validation-stack/
-    ├── 08-monitoring-alerting/
-    ├── 09-backup-recovery/
+    ├── 08-backup-recovery/
+    ├── 09-monitoring-alerting/
     ├── 10-observability-grafana/
     └── migrations/
 ```
