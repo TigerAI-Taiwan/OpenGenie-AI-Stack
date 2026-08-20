@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # =====================================================================
 # TigerAI Backup/Recovery Module Initializer
-# Path: deployments/compose-stack/08-backup-recovery/deploy.sh
+# Path: deployments/compose-stack/09-backup-recovery/deploy.sh
 #
 # 本模組沒有 compose 檔 —— 備份／還原／VRAM purge 都是 host 上的一次性腳本，
 # 所以 deploy.sh 只負責「把腳本準備好」，以及提供搬進 resource/ 之後的替代入口。
@@ -16,7 +16,7 @@
 # ⚠️ 搬進 resource/ 之前，使用者／master-deploy.sh 的入口是模組根目錄下的
 #    ./backup-tigerai.sh 等四支腳本。搬完後那些路徑不存在了，上面的 action
 #    就是替代入口 —— master-deploy.sh 因此不必知道本模組的檔案佈局
-#    （用 `[ -f ./08-backup-recovery/backup-tigerai.sh ]` 當 guard 會永遠 false，
+#    （用 `[ -f ./09-backup-recovery/backup-tigerai.sh ]` 當 guard 會永遠 false，
 #     而 if 沒中就是「安靜跳過」，備份會默默不執行）。
 #
 # 檔案歸屬（見 lib/common.sh 的 tiger_res）：

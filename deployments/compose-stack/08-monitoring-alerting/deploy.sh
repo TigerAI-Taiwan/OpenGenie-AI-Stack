@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # =====================================================================
 # TigerAI Monitoring Deployer
-# Path: deployments/compose-stack/09-monitoring-alerting/deploy.sh
+# Path: deployments/compose-stack/08-monitoring-alerting/deploy.sh
 #
 # No compose file and no platform entries — see
 # resource/_shared/tiger-monitor.sh for why one shared copy is correct here.

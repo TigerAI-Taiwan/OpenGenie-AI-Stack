@@ -72,8 +72,8 @@ DEPLOY_STEPS=(
     "05-rag-stack-docling-qdrant-mosquitto"
     "06-ai-core-lemonade"
     "07-validation-stack"
-    "09-monitoring-alerting"
-    "08-backup-recovery"
+    "08-monitoring-alerting"   # monitoring 先起，讓 09 安裝 cron 後監控即可看到 VRAM purge 狀態
+    "09-backup-recovery"
     "10-observability-grafana"
 )
 
@@ -236,13 +236,13 @@ case "${1:-}" in
         LOG "Full deployment mission completed"
 
         # Maintenance Cron（每日 5:00 VRAM purge）
-        # ⚠️ 這裡刻意走 run_step 委派給 08 的 deploy.sh，不要改回
-        #    `[ -f "./08-.../<某支腳本>" ]` 這種「用檔案存在與否當 guard」的寫法：
+        # ⚠️ 這裡刻意走 run_step 委派給 09 的 deploy.sh，不要改回
+        #    `[ -f "./09-.../<某支腳本>" ]` 這種「用檔案存在與否當 guard」的寫法：
         #    模組一旦重組檔案佈局，那個 [ -f ] 就會永遠是 false —— 而 if 沒中就是
         #    「安靜跳過」，不會有任何錯誤訊息，結果是 VRAM purge cron 默默沒被安裝。
         #    模組內部的檔案佈局由模組自己解析，master 不該知道，也就不會過期。
         LOG "Setting up maintenance cron job (Daily 5:00 AM VRAM Purge)..."
-        run_step "08-backup-recovery" cron
+        run_step "09-backup-recovery" cron
 
         # MQTT Device Monitor Cron
         # ⚠️ 這裡刻意走 run_step 委派給 05 的 deploy.sh，不要改回
@@ -286,8 +286,8 @@ case "${1:-}" in
         exec bash ./deploy.sh check
         ;;
     backup|restore)
-        # 委派給 08-backup-recovery/deploy.sh 的同名 action。理由同上面的 cron：
-        # 用 `[ -f "./08-.../<某支腳本>" ]` 當 guard 會在模組重組佈局後永遠 false，
+        # 委派給 09-backup-recovery/deploy.sh 的同名 action。理由同上面的 cron：
+        # 用 `[ -f "./09-.../<某支腳本>" ]` 當 guard 會在模組重組佈局後永遠 false，
         # 把「找不到就報錯」變成「永遠找不到」。路徑解析交給模組自己。
         #
         # `$1` 是動作本身（backup / restore），`${@:2}` 是要交給模組的參數，例如
@@ -299,9 +299,9 @@ case "${1:-}" in
         #
         # run_step 對「模組目錄不存在」是 WARN + return 0（遷移期語意）。備份／還原
         # 不能 fail-open，所以這裡先自己擋一次並以非 0 退出，維持搬移前的行為。
-        [ -d "./08-backup-recovery" ] || \
-            ERROR "Backup/Recovery module not found: ./08-backup-recovery"
-        run_step "08-backup-recovery" "$1" "${@:2}"
+        [ -d "./09-backup-recovery" ] || \
+            ERROR "Backup/Recovery module not found: ./09-backup-recovery"
+        run_step "09-backup-recovery" "$1" "${@:2}"
         ;;
     clean)
         WARN "Stopping and removing application containers..."

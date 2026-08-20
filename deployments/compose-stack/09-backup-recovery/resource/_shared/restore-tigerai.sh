@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # =====================================================================
 # TigerAI Data Restoration Tool (P1 Tier)
-# Path: deployments/compose-stack/08-backup-recovery/resource/_shared/restore-tigerai.sh
+# Path: deployments/compose-stack/09-backup-recovery/resource/_shared/restore-tigerai.sh
 #
 # 三平台共用一份（舊三份逐字相同，只差各自的 "# Path:" 檔頭）。還原內容沒有
 # 任何 GPU / 平台相依性 —— 就是 psql + tar，所以放 _shared/。
@@ -16,7 +16,7 @@ set -eo pipefail
 
 # --- 0) Configuration ---
 # 路徑一律以本檔位置推導，不依賴 CWD。本檔位於
-# <stack>/08-backup-recovery/resource/_shared/，因此 ../.. 是模組目錄、
+# <stack>/09-backup-recovery/resource/_shared/，因此 ../.. 是模組目錄、
 # ../../.. 是 stack 根目錄。
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MODULE_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"

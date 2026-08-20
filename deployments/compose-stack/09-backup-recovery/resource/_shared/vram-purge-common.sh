@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # =====================================================================
 # TigerAI VRAM Purge & Service Refresh — 三平台共用主體
-# Path: deployments/compose-stack/08-backup-recovery/resource/_shared/vram-purge-common.sh
+# Path: deployments/compose-stack/09-backup-recovery/resource/_shared/vram-purge-common.sh
 #
 # 這個檔案「不是」入口，而是由 resource/<platform>/vram-purge.sh source 進來的
 # 共用主體：路徑推導、tiger_compose 橋接、Ollama 重啟、tiger_vram_purge_main。
@@ -34,7 +34,7 @@ fi
 # 一律以本檔位置推導，不依賴 CWD（cron 起來時 CWD 是家目錄）。
 # ⚠️ 被 source 時 ${BASH_SOURCE[0]} 仍指向本檔（$0 才是入口檔），所以推導出來的
 #    是 resource/_shared/。本檔位於
-#    <stack>/08-backup-recovery/resource/_shared/vram-purge-common.sh，
+#    <stack>/09-backup-recovery/resource/_shared/vram-purge-common.sh，
 #    因此 ../.. 是模組目錄、../../.. 是 stack 根目錄。
 TIGER_PURGE_SHARED_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 TIGER_MODULE_DIR="$(cd "${TIGER_PURGE_SHARED_DIR}/../.." && pwd -P)"
