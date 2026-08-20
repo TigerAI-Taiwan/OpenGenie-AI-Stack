@@ -72,8 +72,8 @@ DEPLOY_STEPS=(
     "05-rag-stack-docling-qdrant-mosquitto"
     "06-ai-core-lemonade"
     "07-validation-stack"
-    "09-monitoring-alerting"
     "08-backup-recovery"
+    "09-monitoring-alerting"
     "10-observability-grafana"
 )
 
