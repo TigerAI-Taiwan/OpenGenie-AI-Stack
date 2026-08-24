@@ -1,5 +1,18 @@
 # Changelog
 
+## [v3.2.0] - 2026-08-24
+
+- 平台驗證由子字串比對改為等值比對，`TIGER_PLATFORM="amd nvidia"` 不再被放行。
+- `00-pre-flight-advisor`：非互動環境下不再中止，改採預設 profile 並正常輸出調校檔。
+- `00-pre-flight-advisor`：輸出的 key 更名為 `TIGER_OWUI_UVICORN_WORKERS`，OpenWebUI worker 建議值**首次生效**。
+- `09-monitoring-alerting`：新增動作分派與 `uninstall`，`master-deploy.sh clean` 不再反而安裝並啟動監控。
+- `05-rag-stack`：不再產生 host 端 `allow_anonymous true` 的 broker 設定檔（既有檔案不會被刪除）。
+- `benchmark-tps.sh` 改用模組內 venv，不再對系統 Python 執行 `pip3 install`。
+- 新增 `OLLAMA_CONTEXT_LENGTH=32768`；Redis 改用 `redis:8-alpine`；nvidia 的 docling 統一為 `cu130:v1.30.0`。
+- Lemonade：`lemonade-edu` 與 `lemonade-rag` 的 context 設定對齊，`lemonade-embed` 的執行緒數改為推導。
+- 非破壞性變更，`.env` 無需更名；Redis 與 docling 換 image 的注意事項見 Release Note。
+- [Full Release Note](v3.2.0/RELEASE-NOTE.md)
+
 ## [v3.1.0] - 2026-08-18
 
 - n8n：`N8N_SECRET` 更名為 `N8N_ENCRYPTION_KEY`，compose 端保留舊名 fallback 以免無聲換掉金鑰。
@@ -62,6 +75,8 @@
 - 更新部署、錯誤復原與完整清除指引。
 - [Full Release Note](v1.0.0/RELEASE-NOTE.md)
 
+[v3.2.0]: https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/compare/v3.1.0...v3.2.0
+[v3.1.0]: https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/compare/v3.0.0...v3.1.0
 [v3.0.0]: https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/compare/v2.0.0...v3.0.0
 [v2.0.0]: https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/compare/v1.3.0...v2.0.0
 [v1.3.0]: https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/compare/v1.2.1...v1.3.0
