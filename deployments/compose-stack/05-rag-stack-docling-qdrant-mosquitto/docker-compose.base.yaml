@@ -3,7 +3,7 @@
 # Path: deployments/compose-stack/05-rag-stack-docling-qdrant-mosquitto/docker-compose.base.yaml
 #
 # Every platform difference lives in docker-compose.<platform>.yaml:
-#   docling image      nvidia: docling-serve-cu128   amd / arm64: docling-serve-cpu
+#   docling image      nvidia: docling-serve-cu130   amd / arm64: docling-serve-cpu
 #   qdrant image       nvidia: gpu-nvidia-latest     amd: gpu-amd-latest   arm64: latest
 #   GPU access         amd: devices /dev/kfd + /dev/dri + Vulkan ICD mounts
 #                      nvidia / arm64: deploy.resources.reservations

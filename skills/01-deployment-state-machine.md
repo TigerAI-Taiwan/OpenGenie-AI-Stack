@@ -278,7 +278,7 @@ Combine these results with `.agent-state.json` to identify your exact state belo
    ```bash
    cat ./tiger-tuning.env
    ```
-   Expected content (BALANCED profile example): `TIGER_OPTIMIZATION_PROFILE=BALANCED`, `TIGER_CPU_THREADS`, `TIGER_N8N_WORKERS`, `TIGER_OWUI_WORKERS`, `TIGER_LOG_MAX_SIZE`, plus detected hardware fields.
+   Expected content (BALANCED profile example): `TIGER_OPTIMIZATION_PROFILE=BALANCED`, `TIGER_CPU_THREADS`, `TIGER_N8N_WORKERS`, `TIGER_OWUI_UVICORN_WORKERS`, `TIGER_LOG_MAX_SIZE`, plus detected hardware fields.
 
    If the file is missing or empty, `init` has failed. Consult `02-error-recovery-guide.md` and do NOT proceed to `app`.
 

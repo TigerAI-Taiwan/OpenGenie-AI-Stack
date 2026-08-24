@@ -89,18 +89,26 @@ if [ "$TIGER_PLATFORM" = "amd" ]; then
     export TIGER_RENDER_GID TIGER_VIDEO_GID
 fi
 
+# nvidia overlay 的 docling 用 bare key 取 OMP_NUM_THREADS：只有在真的有調校值
+# 時才 export，否則明確 unset —— host 可能傳下一個空字串（sudo -E 原樣轉發），
+# 而 bare key 會把那個空值帶進容器。
+if [ -n "${TIGER_CPU_THREADS:-}" ]; then
+    export OMP_NUM_THREADS="$TIGER_CPU_THREADS"
+else
+    unset OMP_NUM_THREADS
+fi
+
 prep_rag_env() {
     LOG " Configuring RAG environment..."
+    # mosquitto.conf 由 compose 直接從 resource/_shared/ 掛進容器，
+    # 不需要 host 端的 config 目錄。
     sudo mkdir -p "$BASE_DIR/docling" "$BASE_DIR/qdrant" \
-                  "$MQTT_HOST_DIR/config" "$MQTT_HOST_DIR/data" "$MQTT_HOST_DIR/log"
+                  "$MQTT_HOST_DIR/data" "$MQTT_HOST_DIR/log"
     # docling-serve runs as UID 1001 (non-root) → bind-mount must be writable by 1001
     sudo chown -R 1001:1001 "$BASE_DIR/docling"
     # qdrant runs as root (UID 0) → ownership is cosmetic, root writes regardless
     sudo chown -R "$REAL_USER":"$REAL_USER" "$BASE_DIR/qdrant"
     sudo chown -R 1883:1883 "$MQTT_HOST_DIR"
-    if [ ! -f "$MQTT_HOST_DIR/config/mosquitto.conf" ]; then
-      echo -e "persistence true\npersistence_location /mosquitto/data/\nlog_dest file /mosquitto/log/mosquitto.log\nlistener 1883\nallow_anonymous true" | sudo tee "$MQTT_HOST_DIR/config/mosquitto.conf" >/dev/null
-    fi
 }
 
 setup_python_env() {
