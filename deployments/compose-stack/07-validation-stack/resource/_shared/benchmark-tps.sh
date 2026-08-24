@@ -11,9 +11,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MODULE_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 cd "$SCRIPT_DIR"
 
-# venv 放模組根目錄，與 05-rag-stack 的 setup_python_env 同慣例。
 # ⚠️ 不要改回 `pip3 install requests`：近期 Debian/Ubuntu 的系統 Python 是
-#    externally-managed，那行不是直接失敗、就是動到 OS 擁有的 Python。
+#    externally-managed。venv 位置與 05-rag-stack 同慣例。
 VENV_DIR="$MODULE_DIR/.venv"
 VENV_PYTHON="$VENV_DIR/bin/python3"
 
@@ -22,7 +21,6 @@ if [ ! -f "$VENV_PYTHON" ]; then
     if ! python3 -m venv "$VENV_DIR" 2>/dev/null; then
         echo "python3-venv 可能未安裝，嘗試安裝..."
         sudo apt-get install -y python3-venv
-        # 建立失敗會留下半成品目錄，不清掉的話重試會沿用壞掉的 pyvenv.cfg。
         rm -rf "$VENV_DIR"
         python3 -m venv "$VENV_DIR"
     fi

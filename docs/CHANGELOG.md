@@ -10,6 +10,7 @@
 - `benchmark-tps.sh` 改用模組內 venv，不再對系統 Python 執行 `pip3 install`。
 - 新增 `OLLAMA_CONTEXT_LENGTH=32768`；Redis 改用 `redis:8-alpine`；nvidia 的 docling 統一為 `cu130:v1.30.0`。
 - Lemonade：`lemonade-edu` 與 `lemonade-rag` 的 context 設定對齊，`lemonade-embed` 的執行緒數改為推導。
+- `05-rag-stack`：`pull_docling_image()` 不再自帶 image 預設值，未設 `DOCLING_IMAGE` 時跳過預拉——修正 arm64 在無 `.env` 時預拉一顆用不到的 CUDA image。
 - `master-deploy.sh`：`DEPLOY_STEPS` 改為依編號順序執行，`08-backup-recovery` 移到 `09-monitoring-alerting` 之前（#21）。
 - 非破壞性變更，`.env` 無需更名；Redis 與 docling 換 image 的注意事項見 Release Note。
 - [Full Release Note](v3.2.0/RELEASE-NOTE.md)

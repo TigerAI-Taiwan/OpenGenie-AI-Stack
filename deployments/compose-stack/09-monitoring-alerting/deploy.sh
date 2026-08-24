@@ -15,10 +15,8 @@ source "${SCRIPT_DIR}/../lib/common.sh"
 MONITOR_SCRIPT="$(tiger_res tiger-monitor.sh)"
 chmod +x "$MONITOR_SCRIPT"
 
-# This module has no compose file, so it must dispatch on the action itself.
-# Without the `down` branch, `master-deploy.sh clean` — which runs
-# `deploy.sh down` on every module — would fall through to the install below
-# and *start* the monitor as part of tearing the stack down.
+# `master-deploy.sh clean` runs `deploy.sh down` on every module. Without the
+# branch below it would fall through and *start* the monitor instead.
 ACTION=${1:-all}
 
 case "$ACTION" in
@@ -27,8 +25,6 @@ case "$ACTION" in
         LOG "Monitoring service removed."
         ;;
     *)
-        # Default, including the `all` / `restart` that master-deploy.sh passes.
-        # Unknown arguments land here too, preserving the prior behaviour.
         # -E so TIGER_PLATFORM survives the sudo boundary; the install action
         # bakes it into the systemd unit.
         sudo -E "$MONITOR_SCRIPT" install

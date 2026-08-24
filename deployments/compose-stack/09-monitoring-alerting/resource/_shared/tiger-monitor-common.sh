@@ -101,11 +101,8 @@ TIGER_LOG_CONTEXT="(Target: ${TARGET_HOST})"
 # Check dependencies
 if ! command -v mosquitto_pub &>/dev/null; then
     LOG "Installing mosquitto-clients for MQTT notifications..."
-    # `|| true` is required: this is the last statement of the if-body, so a
-    # failing install (no network, held packages, non-Debian host) propagates
-    # and `set -e` in the sourcing shell aborts the source — skipping the
-    # graceful degradation below and leaving the monitor not running at all,
-    # rather than running without publishing.
+    # `|| true` is required: as the last statement of the if-body, a failed
+    # install aborts the `source` and skips the degradation below.
     sudo apt update && sudo apt install -y mosquitto-clients || true
 fi
 # Still missing after the install attempt: keep probing services locally rather
@@ -233,7 +230,6 @@ check_and_notify() {
 # Dispatcher. The platform entry point calls this after appending its own
 # SERVICES entries.
 tiger_monitor_main() {
-# Hoisted so install and uninstall cannot drift apart on the unit name.
 local unit="tiger-monitor.service"
 local unit_path="/etc/systemd/system/$unit"
 case "${1:-}" in
@@ -280,9 +276,8 @@ EOF
         ;;
     uninstall)
         LOG "Removing systemd service..."
-        # Presence of the unit file decides "was it installed", which lets the
-        # exit code of `disable` stay un-swallowed — `disable --now` also stops
-        # the service, and swallowing a failure leaves a process still alarming.
+        # Guard on the unit file so `disable` keeps its exit code — swallowing
+        # a failure leaves a process still alarming.
         if [ -f "$unit_path" ] && command -v systemctl >/dev/null 2>&1; then
             sudo systemctl disable --now "$unit"
         fi

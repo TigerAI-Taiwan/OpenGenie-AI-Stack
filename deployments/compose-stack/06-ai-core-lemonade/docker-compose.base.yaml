@@ -63,9 +63,7 @@ services:
         set -e
         mkdir -p "$$CACHE_DIR"
         THREADS=$${TIGER_CPU_THREADS:-16}
-        # ctx 131072 is what 32GB VRAM holds; parallel 2 gives each slot 65536
-        # tokens, otherwise a ~30k-token system prompt exceeds the per-slot
-        # limit. Matches lemonade-rag below.
+        # parallel 2 gives each slot 65536 tokens. Matches lemonade-rag below.
         cat > "$$CACHE_DIR/config.json" << EOF
         {
           "config_version": 1,
@@ -143,9 +141,8 @@ services:
       - |
         set -e
         mkdir -p "$$CACHE_DIR"
-        # embed runs alongside edu/rag; take half so the two do not contend for
-        # the same cores. The floor of 1 matters — llama.cpp reads --threads 0
-        # as "auto-detect" and takes every core.
+        # Half, so embed does not contend with edu/rag. The floor of 1 matters:
+        # llama.cpp reads --threads 0 as "auto-detect" and takes every core.
         THREADS=$$(( $${TIGER_CPU_THREADS:-16} / 2 ))
         [ "$$THREADS" -lt 1 ] && THREADS=1
         cat > "$$CACHE_DIR/config.json" << EOF

@@ -10,15 +10,12 @@
 # =====================================================================
 services:
   docling:
-    # WARNING: cu130 publishes NO `latest` tag (only vX.Y.Z), so this default
-    # must stay a pinned version. Keep it in sync with deploy.sh's
-    # pull_docling_image, which pre-pulls the same ref.
+    # cu130 publishes no `latest` tag, so this must stay pinned. The same pin
+    # also lives in .env.nvidia.example, which overrides this default.
     image: ${DOCLING_IMAGE:-ghcr.io/docling-project/docling-serve-cu130:v1.30.0}
     environment:
-      # Bare key (no `=`): the value comes from deploy.sh's environment, and the
-      # variable is simply absent when it is not set there. `${TIGER_CPU_THREADS:-}`
-      # would inject an EMPTY string instead, and libgomp rejects that with
-      # "Invalid value" rather than falling back to its default.
+      # Bare key: absent when deploy.sh does not set it. `${TIGER_CPU_THREADS:-}`
+      # would inject an empty string, which libgomp rejects outright.
       - OMP_NUM_THREADS
     deploy:
       resources:

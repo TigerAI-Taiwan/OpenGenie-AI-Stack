@@ -17,9 +17,8 @@
 #   * down         nvidia 沒有；這裡三平台都有。
 #   * prep/network arm64 是在 case 分支裡才呼叫；這裡統一成進 case 之前先跑
 #                  （amd / nvidia 的做法）。
-#   * docling 預拉  nvidia 會先 `docker pull`，arm64 沒有（但 image 完全相同）。
-#                  這裡 nvidia / arm64 都預拉 —— 只是把 compose 反正要做的事提前，
-#                  好處是失敗訊息落在這一步而不是 `up -d` 中間。
+#   * docling 預拉  nvidia 會先 `docker pull`，arm64 沒有。這裡兩者都預拉（僅在
+#                  DOCLING_IMAGE 有設時），好處是失敗訊息落在這一步而不是 `up -d` 中間。
 #   * REAL_USER    amd 是 ${SUDO_USER:-${USER:-wrt}}，另兩份是 ${SUDO_USER:-wrt}。
 #                  取 amd 版（與 master-deploy.sh 一致）。
 #
@@ -89,9 +88,8 @@ if [ "$TIGER_PLATFORM" = "amd" ]; then
     export TIGER_RENDER_GID TIGER_VIDEO_GID
 fi
 
-# nvidia overlay 的 docling 用 bare key 取 OMP_NUM_THREADS：只有在真的有調校值
-# 時才 export，否則明確 unset —— host 可能傳下一個空字串（sudo -E 原樣轉發），
-# 而 bare key 會把那個空值帶進容器。
+# nvidia overlay 的 docling 以 bare key 取 OMP_NUM_THREADS。必須明確 unset：
+# sudo -E 會原樣轉發 host 的空字串，bare key 會把它帶進容器。
 if [ -n "${TIGER_CPU_THREADS:-}" ]; then
     export OMP_NUM_THREADS="$TIGER_CPU_THREADS"
 else
@@ -100,8 +98,7 @@ fi
 
 prep_rag_env() {
     LOG " Configuring RAG environment..."
-    # mosquitto.conf 由 compose 直接從 resource/_shared/ 掛進容器，
-    # 不需要 host 端的 config 目錄。
+    # mosquitto.conf 由 compose 從 resource/_shared/ 掛入，不需要 host config 目錄。
     sudo mkdir -p "$BASE_DIR/docling" "$BASE_DIR/qdrant" \
                   "$MQTT_HOST_DIR/data" "$MQTT_HOST_DIR/log"
     # docling-serve runs as UID 1001 (non-root) → bind-mount must be writable by 1001
@@ -205,22 +202,25 @@ build_docling_image() {
     LOG " Docling ROCm image ready: $DOCLING_IMAGE"
 }
 
-# nvidia / arm64: 預拉 CUDA image。
+# nvidia / arm64: 預拉 docling image。
+#
+# ⚠️ 刻意不帶 fallback 值。帶了就成為這個 pin 的第三份字面副本，而且這支函式不分
+#    平台 —— nvidia 是 cu130、arm64 是 cpu，單一 fallback 必然對其中一邊是錯的
+#    （合併後 arm64 曾因此白拉一顆 5 GB 的 CUDA image，然後 compose 再拉 CPU 版）。
+#    沒設就跳過預拉，交給 compose up 自己拉；image 的來源只剩 .env 與 overlay。
 pull_docling_image() {
-    # Keep this default in sync with docker-compose.<platform>.yaml — that overlay's
-    # inline default is now the single source of truth for the cu130 pin.
-    # (.env.{nvidia,arm64}.example deliberately leaves DOCLING_IMAGE unset/commented,
-    #  so a user's copied .env can't silently pin a stale digest after a bump.)
-    # cu130 has no `latest` tag (404) — always a pinned vX.Y.Z + digest.
-    local _IMG="${DOCLING_IMAGE:-ghcr.io/docling-project/docling-serve-cu130:v1.30.0}"
+    if [ -z "${DOCLING_IMAGE:-}" ]; then
+        LOG "DOCLING_IMAGE 未設定，跳過預拉（compose up 會自行拉取）。"
+        return 0
+    fi
     # Match on the exact ref (incl. digest), not the repo name, so a digest
     # bump actually triggers a pull.
-    if ! docker image inspect "$_IMG" >/dev/null 2>&1; then
-        LOG "📥 Docling CUDA image not found locally. Pulling from registry..."
-        docker pull "$_IMG"
-        LOG "✅ Docling CUDA image ready."
+    if ! docker image inspect "$DOCLING_IMAGE" >/dev/null 2>&1; then
+        LOG "📥 Docling image not found locally. Pulling from registry..."
+        docker pull "$DOCLING_IMAGE"
+        LOG "✅ Docling image ready."
     else
-        LOG "✅ Docling CUDA image already exists, skipping pull."
+        LOG "✅ Docling image already exists, skipping pull."
     fi
 }
 

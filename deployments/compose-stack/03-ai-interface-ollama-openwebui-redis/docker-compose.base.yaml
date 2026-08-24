@@ -31,9 +31,7 @@
 # =====================================================================
 services:
   redis:
-    # Official redis rather than redis-stack-server: newer (8.x vs 7.4), and the
-    # extra stack modules (search / JSON / time-series) have no consumer here —
-    # OpenWebUI uses Redis purely as KV plus pub/sub.
+    # redis-stack-server is still 7.4 and its modules have no consumer here.
     image: ${REDIS_IMAGE:-redis:8-alpine}
     container_name: redis
     restart: always
@@ -65,9 +63,7 @@ services:
       - OLLAMA_FLASH_ATTENTION=${OLLAMA_FLASH_ATTENTION:-1}
       - OLLAMA_NUM_PARALLEL=${OLLAMA_NUM_PARALLEL:-2}
       - OLLAMA_MAX_LOADED_MODELS=${OLLAMA_MAX_LOADED_MODELS:-2}
-      # Unset, ollama picks a context tier from detected VRAM (a 128GB
-      # unified-memory box selects 256k); multiplied by NUM_PARALLEL /
-      # MAX_LOADED_MODELS that eats the machine.
+      # Unset, ollama picks a tier from detected VRAM (256k on a 128GB box).
       - OLLAMA_CONTEXT_LENGTH=${OLLAMA_CONTEXT_LENGTH:-32768}
       # -1 = keep models resident in VRAM indefinitely (never unload).
       # amd hard-coded -1 while nvidia/arm64 defaulted to 24h; -1 is the

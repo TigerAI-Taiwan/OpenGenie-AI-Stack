@@ -71,10 +71,8 @@ echo -e "Please select an optimization profile:"
 echo -e "1) ${GREEN}Conservative (Conservative)${NC} - Stability first, low resource overhead."
 echo -e "2) ${YELLOW}Balanced (Balanced)${NC} - Optimized for general AI workloads (Recommended)."
 echo -e "3) ${RED}Optimal (Optimal)${NC} - Maximum performance, high concurrency."
-# WARNING: `read` returns 1 at EOF, and lib/common.sh's `set -e` aborts the
-# script on that — BEFORE the CHOICE default on the next line, so no tuning
-# file is written at all. Every non-interactive caller hits it: tiger-deploy.sh,
-# master-deploy.sh init, pipes, cron, CI.
+# `read` returns 1 at EOF and `set -e` aborts before the default below, so
+# every non-interactive caller ends up with no tuning file at all.
 if [ -t 0 ]; then
     read -r -p "Selection [1-3] (Default: 1 - Conservative): " CHOICE
 else
@@ -123,13 +121,8 @@ esac
 # tiger-deploy.sh runs this from a different directory than master-deploy.sh
 # does, and lib/common.sh only ever reads <stack>/tiger-tuning.env.
 #
-# ⚠️ 輸出的 key 必須是 TIGER_OWUI_UVICORN_WORKERS：03-ai-interface 讀的是
-# TIGER_OWUI_UVICORN_WORKERS（fallback 到 OWUI_UVICORN_WORKERS，再 fallback 到 2），
-# 語意是「單一 openwebui-main 容器內的 uvicorn process 數」，不是額外容器數。
-# 舊名 TIGER_OWUI_WORKERS 全倉庫沒有任何消費者，等於這份建議值從來沒生效過。
-#
-# ⚠️ 下面的 heredoc 沒有引號，內容會做變數展開；註解也一樣會被展開後寫進輸出檔，
-#    所以說明文字一律寫在這裡，不要放進 heredoc。
+# ⚠️ key 必須是 TIGER_OWUI_UVICORN_WORKERS —— 03-ai-interface 只讀這個名字。
+# ⚠️ 下面的 heredoc 未加引號，註解也會被展開後寫進輸出檔，別放進去。
 OUTPUT_FILE="${TIGER_STACK_DIR}/tiger-tuning.env"
 cat <<EOF > "$OUTPUT_FILE"
 # TigerAI Auto-Generated Tuning Configuration

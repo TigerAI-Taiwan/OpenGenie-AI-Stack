@@ -90,14 +90,10 @@ if [ -z "${TIGER_PLATFORM:-}" ]; then
     ERROR "TIGER_PLATFORM is not set. Run via deployments/tiger-deploy.sh or master-deploy.sh," \
           "or set it explicitly: TIGER_PLATFORM={amd|nvidia|arm64} sudo -E bash ./deploy.sh all"
 fi
-# WARNING: an equality loop, not `case " ${TIGER_PLATFORMS[*]} " in *" $x "*)`.
-# That pattern matches a SUBSTRING of the joined array, so TIGER_PLATFORM="amd
-# nvidia" passes and is exported, after which tiger_compose looks for a
-# docker-compose.amd nvidia.yaml that does not exist. Any adjacent pair does it.
-#
-# Do not shorten the loop body to `[ … ] && _tp_ok=1`: as the last statement of
-# a loop body under `set -Ee`, a non-matching final iteration returns 1 and
-# fires the ERR trap.
+# An equality loop, not `case " ${TIGER_PLATFORMS[*]} " in *" $x "*)` — that
+# matches a SUBSTRING, so TIGER_PLATFORM="amd nvidia" passed validation.
+# Do not shorten the body to `[ … ] && _tp_ok=1`: as the loop's last statement
+# a non-matching final iteration returns 1 and fires the ERR trap.
 _tp_ok=""
 for _tp in "${TIGER_PLATFORMS[@]}"; do
     if [ "$_tp" = "$TIGER_PLATFORM" ]; then _tp_ok=1; break; fi

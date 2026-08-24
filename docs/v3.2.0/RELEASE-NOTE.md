@@ -22,6 +22,7 @@ Redis 換 image、docling 換 image、以及硬體調校建議的 OpenWebUI work
 - Redis 由 `redis/redis-stack-server:latest` 改為 `redis:8-alpine`。
 - nvidia 的 docling 統一為 `cu130:v1.30.0`，與 `deploy.sh` 預拉的 image 一致。
 - `06-ai-core-lemonade`：`lemonade-edu` 與 `lemonade-rag` 的 context 設定對齊；`lemonade-embed` 執行緒數改為推導。
+- `05-rag-stack`：`pull_docling_image()` 不再自帶 image 預設值。
 - `master-deploy.sh`：`DEPLOY_STEPS` 改為依編號順序執行（#21）。
 
 ## 升級注意
@@ -165,6 +166,35 @@ fallback 在 `python3 -m venv` 不可用時執行 `sudo apt-get install -y pytho
 現在傳入並取一半，避免與 edu / rag 爭搶同一批核心。⚠️ **下限 1 是必要的**：
 llama.cpp 把 `--threads 0` 解讀為「自動偵測」並吃掉每一顆核心。
 
+### docling 預拉：拿掉自帶的 image 預設值
+
+`pull_docling_image()` 帶著一份寫死的 `cu130:v1.30.0` fallback，而**這支函式不分平台**——
+`check_docling_image()` 的分派是「amd 走本機建置、其餘一律走預拉」，nvidia 與 arm64 共用同一行。
+
+但兩者的 image 不同：nvidia 是 cu130，arm64 沿用 base 的 `docling-serve-cpu:latest`
+（arm64 overlay 沒有 `image:` 行）。`.env` 有設定時兩邊一致，但 `.env` 是 gitignored——
+**使用者沒從 example 複製就直接部署時**，arm64 會先拉一顆 5.15 GB 的 arm64 CUDA image，
+接著 `compose up` 再拉 2.22 GB 的 CPU 版，前者完全用不到，而日誌顯示一切正常。
+
+此缺陷自 v3.0.0 合併起就存在，其依據是當時寫下的一句註解「nvidia 與 arm64 的 image 完全相同」
+——那句話在寫下的當下就與 `.env.arm64.example` 矛盾。該註解一併移除。
+
+修法是拿掉 fallback，而不是讓預拉去分平台（後者等於再引入一份平台對應表，又是一組會漂的副本）：
+
+```bash
+if [ -z "${DOCLING_IMAGE:-}" ]; then
+    LOG "DOCLING_IMAGE 未設定，跳過預拉（compose up 會自行拉取）。"
+    return 0
+fi
+```
+
+⚠️ 用 `if` 而非 `[ -z … ] && return 0`：後者作為函式末句時，條件為假會回傳 1 並觸發
+`lib/common.sh` 的 ERR trap。這與 `lib/common.sh` 的平台驗證迴圈、`master-deploy.sh`
+的 `run_step` 是同一個既有慣例——不依賴敘述在函式中的位置。
+
+image 的來源因此收斂為 `.env` 與 compose overlay 兩處，`deploy.sh` 不再持有任何字面值。
+`.env` 有設定的正常路徑不受影響，「早失敗」的好處完整保留。
+
 ### 部署順序：`DEPLOY_STEPS` 依編號執行
 
 `DEPLOY_STEPS` 陣列中 `09-monitoring-alerting` 原本排在 `08-backup-recovery` 之前，
@@ -231,5 +261,8 @@ systemd unit，雙向 grep 找不到交叉引用），因此這不是修一個�
   因此複製出來的 `.env` 仍會釘住本版的 `v1.30.0`。本版未變更此行為。
 - **advisor 的 worker 數值未經本堆疊硬體驗證。** 2 / 3 / 5 是名稱修好之前就存在的數字，
   在此之前從未真正套用過，因此也從未被實測過。首次選用 OPTIMAL 前建議觀察記憶體用量。
+- **arm64 的 docling image 仍是浮動 tag**（`docling-serve-cpu:latest`）。
+  `docling-serve-cpu` 有 `v1.30.0` 釘版且為 multi-arch，因此這是選擇而非技術限制；
+  本版未一併收斂，nvidia 側「必須釘版本」的理由在 arm64 這行尚未套用。
 - **arm64 的 docling 仍使用 GPU reservation。** 若你的目標板子確實是 GB10（`sm_121`），
   Triton lowering 會硬失敗，需自行改為 CPU；本版刻意不預設關閉。
