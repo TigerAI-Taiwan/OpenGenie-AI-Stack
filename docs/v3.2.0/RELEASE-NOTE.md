@@ -22,6 +22,7 @@ Redis 換 image、docling 換 image、以及硬體調校建議的 OpenWebUI work
 - Redis 由 `redis/redis-stack-server:latest` 改為 `redis:8-alpine`。
 - nvidia 的 docling 統一為 `cu130:v1.30.0`，與 `deploy.sh` 預拉的 image 一致。
 - `06-ai-core-lemonade`：`lemonade-edu` 與 `lemonade-rag` 的 context 設定對齊；`lemonade-embed` 執行緒數改為推導。
+- `master-deploy.sh`：`DEPLOY_STEPS` 改為依編號順序執行（#21）。
 
 ## 升級注意
 
@@ -164,6 +165,15 @@ fallback 在 `python3 -m venv` 不可用時執行 `sudo apt-get install -y pytho
 現在傳入並取一半，避免與 edu / rag 爭搶同一批核心。⚠️ **下限 1 是必要的**：
 llama.cpp 把 `--threads 0` 解讀為「自動偵測」並吃掉每一顆核心。
 
+### 部署順序：`DEPLOY_STEPS` 依編號執行
+
+`DEPLOY_STEPS` 陣列中 `09-monitoring-alerting` 原本排在 `08-backup-recovery` 之前，
+與目錄編號相反。兩者之間**沒有任何方向的相依**（08 只安裝一個 cron，09 只安裝一個
+systemd unit，雙向 grep 找不到交叉引用），因此這不是修一個會壞的行為，而是消除
+「編號說一套、執行順序做另一套」的落差——這種落差本身就是日後有人依編號推論相依關係時的陷阱。
+
+此變更已於 `331c10f`（#21）合入 `main`，但當時尚未發版，因此隨本版一併發布。
+
 ## 未納入本版的上游項目
 
 上游變更記錄共 13 項，其中 4 項刻意不搬：
@@ -171,7 +181,8 @@ llama.cpp 把 `--threads 0` 解讀為「自動偵測」並吃掉每一顆核心�
 - **OWUI worker 數 5 → 4**：上游的理由是「每個 process 常駐約 500MB」與對齊其 k3s 側的
   記憶體上限。這兩個前提都與本堆疊的硬體無關，需要在自己的機器上重新評估，
   不是照抄一個數字。本版只修好名稱，數值未動。
-- **`08` / `09` 順序調換**：已於 `331c10f`（#21）完成，僅確認未再改動。
+- **`08` / `09` 順序調換**：本倉庫已於 `331c10f`（#21）自行完成，見上節；
+  本次僅確認未再改動。
 - **broker 帳號對齊**：本堆疊已改用 stack 層的 `MQTT_USERNAME` / `MQTT_PASSWORD`，
   比上游的做法更徹底。
 - **arm64 關閉 docling GPU**：這是 GB10（`sm_121`，PyPI PyTorch 僅編到 `sm_120`）的
