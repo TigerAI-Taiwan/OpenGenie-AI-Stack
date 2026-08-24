@@ -101,7 +101,9 @@ TIGER_LOG_CONTEXT="(Target: ${TARGET_HOST})"
 # Check dependencies
 if ! command -v mosquitto_pub &>/dev/null; then
     LOG "Installing mosquitto-clients for MQTT notifications..."
-    sudo apt update && sudo apt install -y mosquitto-clients
+    # `|| true` is required: as the last statement of the if-body, a failed
+    # install aborts the `source` and skips the degradation below.
+    sudo apt update && sudo apt install -y mosquitto-clients || true
 fi
 # Still missing after the install attempt: keep probing services locally rather
 # than dying, but say so — silently skipping every publish would look exactly
@@ -228,6 +230,8 @@ check_and_notify() {
 # Dispatcher. The platform entry point calls this after appending its own
 # SERVICES entries.
 tiger_monitor_main() {
+local unit="tiger-monitor.service"
+local unit_path="/etc/systemd/system/$unit"
 case "${1:-}" in
     once)
         check_and_notify
@@ -250,7 +254,7 @@ case "${1:-}" in
         # file. Pointing systemd at _shared/ would start a script that defines
         # functions and calls nothing.
         local entry="${TIGER_MONITOR_ENTRY:?TIGER_MONITOR_ENTRY not set by the platform entry point}"
-        sudo tee /etc/systemd/system/tiger-monitor.service > /dev/null <<EOF
+        sudo tee "$unit_path" > /dev/null <<EOF
 [Unit]
 Description=TigerAI Proactive Health Monitor
 After=network.target mosquitto.service
@@ -267,11 +271,24 @@ RestartSec=30
 WantedBy=multi-user.target
 EOF
         sudo systemctl daemon-reload
-        sudo systemctl enable --now tiger-monitor.service
+        sudo systemctl enable --now "$unit"
         LOG "Systemd service installed and started."
         ;;
+    uninstall)
+        LOG "Removing systemd service..."
+        # Guard on the unit file so `disable` keeps its exit code — swallowing
+        # a failure leaves a process still alarming.
+        if [ -f "$unit_path" ] && command -v systemctl >/dev/null 2>&1; then
+            sudo systemctl disable --now "$unit"
+        fi
+        sudo rm -f "$unit_path"
+        if command -v systemctl >/dev/null 2>&1; then
+            sudo systemctl daemon-reload
+        fi
+        LOG "Systemd service removed."
+        ;;
     *)
-        echo "Usage: $0 {once | start | install}"
+        echo "Usage: $0 {once | start | install | uninstall}"
         ;;
 esac
 }

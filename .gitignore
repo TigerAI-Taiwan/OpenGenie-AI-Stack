@@ -3,3 +3,4 @@ tiger-tuning.env
 __pycache__/
 maintenance.log
 .claude/
+.venv/

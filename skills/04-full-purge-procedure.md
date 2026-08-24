@@ -69,6 +69,8 @@ Remove the massive Docling Python environment and any dangling Docker images ass
 
 ```bash
 sudo rm -rf deployments/compose-stack/05-rag-stack-docling-qdrant-mosquitto/.venv
+sudo docker rmi ghcr.io/docling-project/docling-serve-cu130:v1.30.0 2>/dev/null || true
+# cu128 was the nvidia default before this change; kept so upgraded hosts get cleaned too.
 sudo docker rmi ghcr.io/docling-project/docling-serve-cu128:latest 2>/dev/null || true
 sudo docker rmi ghcr.io/docling-project/docling-serve-cpu:latest 2>/dev/null || true
 sudo docker rmi ghcr.io/docling-project/docling-serve-rocm:main 2>/dev/null || true

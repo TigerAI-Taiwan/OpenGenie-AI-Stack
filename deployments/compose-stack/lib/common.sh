@@ -90,10 +90,19 @@ if [ -z "${TIGER_PLATFORM:-}" ]; then
     ERROR "TIGER_PLATFORM is not set. Run via deployments/tiger-deploy.sh or master-deploy.sh," \
           "or set it explicitly: TIGER_PLATFORM={amd|nvidia|arm64} sudo -E bash ./deploy.sh all"
 fi
-case " ${TIGER_PLATFORMS[*]} " in
-    *" ${TIGER_PLATFORM} "*) ;;
-    *) ERROR "TIGER_PLATFORM='${TIGER_PLATFORM}' is not valid. Allowed: ${TIGER_PLATFORMS[*]}" ;;
-esac
+# An equality loop, not `case " ${TIGER_PLATFORMS[*]} " in *" $x "*)` — that
+# matches a SUBSTRING, so TIGER_PLATFORM="amd nvidia" passed validation.
+# Do not shorten the body to `[ … ] && _tp_ok=1`: as the loop's last statement
+# a non-matching final iteration returns 1 and fires the ERR trap.
+_tp_ok=""
+for _tp in "${TIGER_PLATFORMS[@]}"; do
+    if [ "$_tp" = "$TIGER_PLATFORM" ]; then _tp_ok=1; break; fi
+done
+unset _tp
+if [ -z "$_tp_ok" ]; then
+    ERROR "TIGER_PLATFORM='${TIGER_PLATFORM}' is not valid. Allowed: ${TIGER_PLATFORMS[*]}"
+fi
+unset _tp_ok
 # WARNING: export TIGER_PLATFORM only. TIGER_MODULE_DIR / TIGER_MODULE /
 # TIGER_STACK_DIR are deliberately NOT exported: master-deploy.sh launches each
 # module with `sudo -E bash ./deploy.sh`, and an exported module dir would be

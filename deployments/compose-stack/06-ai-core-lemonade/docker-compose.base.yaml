@@ -63,13 +63,14 @@ services:
         set -e
         mkdir -p "$$CACHE_DIR"
         THREADS=$${TIGER_CPU_THREADS:-16}
+        # parallel 2 gives each slot 65536 tokens. Matches lemonade-rag below.
         cat > "$$CACHE_DIR/config.json" << EOF
         {
           "config_version": 1,
-          "ctx_size": 81920,
+          "ctx_size": 131072,
           "extra_models_dir": "/models",
           "llamacpp": {
-            "args": "--threads $$THREADS --parallel 4 --cache-type-k q8_0 --cache-type-v q8_0",
+            "args": "--threads $$THREADS --parallel 2 --cache-type-k q8_0 --cache-type-v q8_0",
             "backend": "vulkan"
           }
         }
@@ -130,6 +131,7 @@ services:
       LEMONADE_API_KEY: ${LEMONADE_API_KEY}
       GGML_VULKAN_DEVICE: ${GGML_VULKAN_DEVICE_EMBED:-0}
       CACHE_DIR: /var/cache/lemonade
+      TIGER_CPU_THREADS: ${TIGER_CPU_THREADS:-16}
     volumes:
       - ${MODELS_DIR:-/home/wrt/TigerAI/models}:/models:ro
       - lemonade-embed-cache:/var/cache/lemonade
@@ -139,13 +141,17 @@ services:
       - |
         set -e
         mkdir -p "$$CACHE_DIR"
+        # Half, so embed does not contend with edu/rag. The floor of 1 matters:
+        # llama.cpp reads --threads 0 as "auto-detect" and takes every core.
+        THREADS=$$(( $${TIGER_CPU_THREADS:-16} / 2 ))
+        [ "$$THREADS" -lt 1 ] && THREADS=1
         cat > "$$CACHE_DIR/config.json" << EOF
         {
           "config_version": 1,
           "ctx_size": 8192,
           "extra_models_dir": "/models",
           "llamacpp": {
-            "args": "--threads 8 --embedding",
+            "args": "--threads $$THREADS --embedding",
             "backend": "vulkan"
           }
         }
