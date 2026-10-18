@@ -1,6 +1,6 @@
 services:
   n8n-main:
-    image: ${N8N_IMAGE:-docker.n8n.io/n8nio/n8n:latest}
+    image: ${N8N_IMAGE:-docker.n8n.io/n8nio/n8n:stable}
     container_name: n8n-main
     restart: always
     healthcheck:
@@ -63,7 +63,7 @@ services:
         max-file: "3"
 
   n8n-worker:
-    image: ${N8N_IMAGE:-docker.n8n.io/n8nio/n8n:latest}
+    image: ${N8N_IMAGE:-docker.n8n.io/n8nio/n8n:stable}
     # no container_name — required for --scale support
     restart: always
     command: worker

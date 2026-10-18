@@ -255,6 +255,12 @@ case "$ACTION" in
     cron)        run_host_script setup-cron.sh ;;
 esac
 
+# Only actions that start qdrant / mosquitto are checked — down / cron /
+# build-docling / docling are not. Separate from the dispatch below, which
+# groups docling|qdrant|mosquitto into one branch.
+case "$ACTION" in
+    all|qdrant|mosquitto|restart) bash "${SCRIPT_DIR}/pre-deploy.sh" || exit $? ;;
+esac
 prep_rag_env
 ensure_network
 check_docling_image

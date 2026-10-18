@@ -4,15 +4,13 @@
 #
 # WARNING: this file is used by the amd platform ONLY.
 #
-# Lemonade is deployed in two completely different shapes in this repository:
-#   amd            — the three containers below (Vulkan via /dev/kfd + /dev/dri)
-#   nvidia, arm64  — native systemd units written by deploy.sh, no containers
+# Lemonade is deployed on amd alone, as the three containers below (Vulkan via
+# /dev/kfd + /dev/dri). On nvidia and arm64 the LLM inference path is Ollama in
+# 03-ai-interface: deploy.sh logs that the module does not apply and exits 0
+# before reaching tiger_compose, which is why master-deploy.sh can keep this
+# module in DEPLOY_STEPS on every platform.
 #
-# There is no overlay for this module because there is nothing to overlay:
-# the platforms do not share a service definition. deploy.sh branches on
-# TIGER_PLATFORM and only reaches tiger_compose on amd. Running
-# `tiger_compose` here under nvidia or arm64 would start containers that
-# duplicate the systemd services and fight them for the GPU.
+# There is no overlay for this module because there is nothing to overlay.
 #
 # GPU access: /dev/kfd + /dev/dri device mounts (no ROCm runtime needed).
 #
@@ -26,7 +24,14 @@
 # =====================================================================
 
 x-lemonade-base: &lemonade-base
-  image: ghcr.io/lemonade-sdk/lemonade-server:latest
+  image: ghcr.io/lemonade-sdk/lemonade-server:v11.9.0
+  # The v11 image runs as `USER lemonade` (uid 10001), but /var/cache/lemonade is
+  # a named volume whose mount point Docker creates as root. Non-root cannot write
+  # config.json there, `set -e` exits, and every container CrashLoops.
+  # Cost: the containers run as root, with /dev/kfd and /dev/dri mapped in. The
+  # alternative, `chown -R 10001:10001` on the volume, was not chosen because it
+  # rewrites existing volumes.
+  user: "0:0"
   restart: always
   networks:
     - ai_stack_net
@@ -50,7 +55,7 @@ services:
       - "8800:8800"
     environment:
       LEMONADE_API_KEY: ${LEMONADE_API_KEY}
-      GGML_VULKAN_DEVICE: ${GGML_VULKAN_DEVICE_EDU:-0}
+      GGML_VK_VISIBLE_DEVICES: ${GGML_VK_VISIBLE_DEVICES_EDU:-0}
       CACHE_DIR: /var/cache/lemonade
       TIGER_CPU_THREADS: ${TIGER_CPU_THREADS:-16}
     volumes:
@@ -75,7 +80,10 @@ services:
           }
         }
         EOF
-        exec /opt/lemonade/lemond "$$CACHE_DIR" --port 8800 --host 0.0.0.0
+        # v11 added a config_dir positional argument (lemond [cache_dir] [config_dir]).
+        # Given only cache_dir, config_dir follows it; it is passed explicitly
+        # here so this does not rely on that implicit derivation.
+        exec /opt/lemonade/lemond "$$CACHE_DIR" "$$CACHE_DIR" --port 8800 --host 0.0.0.0
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:8800/live"]
       interval: 30s
@@ -90,7 +98,7 @@ services:
       - "8801:8801"
     environment:
       LEMONADE_API_KEY: ${LEMONADE_API_KEY}
-      GGML_VULKAN_DEVICE: ${GGML_VULKAN_DEVICE_RAG:-0}
+      GGML_VK_VISIBLE_DEVICES: ${GGML_VK_VISIBLE_DEVICES_RAG:-0}
       CACHE_DIR: /var/cache/lemonade
       TIGER_CPU_THREADS: ${TIGER_CPU_THREADS:-16}
     volumes:
@@ -114,7 +122,7 @@ services:
           }
         }
         EOF
-        exec /opt/lemonade/lemond "$$CACHE_DIR" --port 8801 --host 0.0.0.0
+        exec /opt/lemonade/lemond "$$CACHE_DIR" "$$CACHE_DIR" --port 8801 --host 0.0.0.0
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:8801/live"]
       interval: 30s
@@ -129,7 +137,7 @@ services:
       - "8802:8802"
     environment:
       LEMONADE_API_KEY: ${LEMONADE_API_KEY}
-      GGML_VULKAN_DEVICE: ${GGML_VULKAN_DEVICE_EMBED:-0}
+      GGML_VK_VISIBLE_DEVICES: ${GGML_VK_VISIBLE_DEVICES_EMBED:-0}
       CACHE_DIR: /var/cache/lemonade
       TIGER_CPU_THREADS: ${TIGER_CPU_THREADS:-16}
     volumes:
@@ -156,7 +164,7 @@ services:
           }
         }
         EOF
-        exec /opt/lemonade/lemond "$$CACHE_DIR" --port 8802 --host 0.0.0.0
+        exec /opt/lemonade/lemond "$$CACHE_DIR" "$$CACHE_DIR" --port 8802 --host 0.0.0.0
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:8802/live"]
       interval: 30s

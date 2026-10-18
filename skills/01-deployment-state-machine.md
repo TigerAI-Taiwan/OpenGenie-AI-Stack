@@ -152,7 +152,7 @@ Combine these results with `.agent-state.json` to identify your exact state belo
 
    2. Replace every `CHANGE_ME` with your chosen value. Fields you need to set:
       - `PG_PASS` — PostgreSQL password (strong password)
-      - `DB_POSTGRESDB_PASSWORD` — **must match `PG_PASS`**
+      - `DB_POSTGRESDB_PASSWORD` — leave it commented out; it defaults to `PG_PASS`
       - `PGADMIN_EMAIL` — your pgAdmin login email
       - `PGADMIN_PASS` — pgAdmin dashboard password
       - `N8N_SECRET` — any random string (e.g. a UUID, run `uuidgen` to generate one)

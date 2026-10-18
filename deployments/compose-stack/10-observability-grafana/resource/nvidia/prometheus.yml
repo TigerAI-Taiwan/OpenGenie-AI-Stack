@@ -23,10 +23,10 @@ scrape_configs:
     static_configs:
       - targets: ['node-exporter:9100']
 
-  # Docker 容器自動發現 (如果有其他 exporters)
-  - job_name: 'docker-containers'
+  # Loki (log aggregation)
+  - job_name: 'loki'
     static_configs:
-      - targets: []
+      - targets: ['loki:3100']
 
   # n8n metrics (main: process + queue metrics)
   # n8n-worker is started via --scale with no fixed container_name / stable DNS, so a static scrape

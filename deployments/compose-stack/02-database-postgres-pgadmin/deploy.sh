@@ -74,6 +74,11 @@ wait_for_db() {
 }
 
 ACTION=$1
+# Only actions that start containers are checked; `down` is not, so a host in
+# this state can still be stopped. restart is down + up, so it is checked too.
+case "$ACTION" in
+    all|postgres|pgadmin|restart) bash "${SCRIPT_DIR}/pre-deploy.sh" || exit $? ;;
+esac
 ensure_network
 
 case "$ACTION" in

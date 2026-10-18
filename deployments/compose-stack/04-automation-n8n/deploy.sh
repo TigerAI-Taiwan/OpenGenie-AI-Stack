@@ -34,37 +34,9 @@ usage() {
     exit 1
 }
 
-# --- Guard: the encryption key must not still be the install placeholder ------
-# CHANGE_ME is non-empty, so ${VAR:-fallback} never catches it.
-check_encryption_key() {
-    # Only the new name is accepted, so .env must be migrated; the compose file
-    # still falls back to N8N_SECRET, but this is the one place that can insist.
-    # Unset lands on the same default compose uses, which here IS the placeholder.
-    local val="${N8N_ENCRYPTION_KEY:-CHANGE_ME}"
-
-    [ "$val" != "CHANGE_ME" ] && return 0
-
-    # Must never read as "just set some key": an operator still on the old name, or
-    # with credentials already encrypted, would generate a fresh one and orphan them.
-    ERROR "$(printf '%s\n' \
-        "N8N_ENCRYPTION_KEY is not set, or is still the .env.example placeholder" \
-        "CHANGE_ME. Deploying that way makes n8n encrypt every credential with the" \
-        "literal string \"CHANGE_ME\", and the container starts normally with no symptom." \
-        "" \
-        "If .env still has N8N_SECRET, that is this key's former name: rename it to" \
-        "N8N_ENCRYPTION_KEY, keep the value EXACTLY as it is, and delete the old line." \
-        "" \
-        "    -N8N_SECRET=<your current value>" \
-        "    +N8N_ENCRYPTION_KEY=<the same value, unchanged>" \
-        "" \
-        "If n8n on this host has already run with a real key, that key is the" \
-        "encryptionKey field in ${N8N_DIR}/config — reuse THAT one. Do not generate a" \
-        "new key: a new one either stops n8n from starting, or leaves every existing" \
-        "credential permanently undecryptable." \
-        "" \
-        "Only on a host where n8n has never started is a fresh key safe:" \
-        "    openssl rand -hex 32")"
-}
+# The encryption key and database password checks live in pre-deploy.sh
+# (called below), so master-deploy.sh can report every module's missing values
+# at once.
 
 # --- Ensure the dedicated n8n database exists ---
 ensure_db() {
@@ -115,7 +87,9 @@ ACTION="$1"
 # shutting the service down would be worse than the problem. Checked before
 # prep_files / ensure_network / ensure_db, so a rejected run has not yet created
 # directories, a network, or touched the database.
-case "$ACTION" in all|main|worker|restart) check_encryption_key ;; esac
+case "$ACTION" in
+    all|main|worker|restart) bash "${SCRIPT_DIR}/pre-deploy.sh" || exit $? ;;
+esac
 prep_files
 ensure_network
 

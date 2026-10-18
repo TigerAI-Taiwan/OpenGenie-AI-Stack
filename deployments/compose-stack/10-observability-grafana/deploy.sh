@@ -72,9 +72,55 @@ ensure_db() {
 # scraped by the 'gpu-metrics' Prometheus job — no host-side rocm-smi collector
 # / cron / node-exporter textfile plumbing is needed.
 
+# prometheus.yml / alloy-config.alloy are single-file bind mounts, and `up -d`
+# compares only the service definition, not the source file's content. After a
+# config edit it decides nothing needs recreating, and the container keeps the
+# config it read at start-up without reporting anything. Compare hashes and
+# restart only when they really differ; equal means leave it, so a deploy does
+# not drop connections every time.
+#
+# Usage: restart_if_config_changed <container> <host file> <path in container>
+restart_if_config_changed() {
+    local ctr="$1" host_cfg="$2" ctr_path="$3"
+    local host_sum ctr_sum
+    host_sum=$(sha256sum "$host_cfg" | awk '{print $1}')
+    # Blind spot: an in-place rewrite (same inode) shows the new content inside
+    # the container, so the hashes match and nothing restarts, while the process
+    # still holds the old config in memory.
+    # The `|| true` is required: without it a failing docker exec fires the ERR
+    # trap inside the command substitution (`set -E` makes subshells inherit it)
+    # and prints a false [FAILED].
+    ctr_sum=$({ docker exec "$ctr" sha256sum "$ctr_path" 2>/dev/null || true; } | awk '{print $1}')
+
+    if [ -z "$ctr_sum" ]; then
+        # Container not running (first deploy / an earlier step failed): nothing
+        # to restart. Running but unreadable means the mounted inode is stale and
+        # only a restart picks up the new file. Neither should abort the deploy.
+        if docker ps --format '{{.Names}}' | grep -qx "$ctr"; then
+            LOG " ${ctr}: $(basename "$host_cfg") is unreadable inside the container (stale mount inode), restarting..."
+            docker restart "$ctr" >/dev/null || WARN "docker restart ${ctr} failed; restart it by hand to apply the new config."
+        else
+            LOG " ${ctr} is not running; skipping the config comparison."
+        fi
+        return 0
+    fi
+
+    if [ "$host_sum" = "$ctr_sum" ]; then
+        LOG " ${ctr}: $(basename "$host_cfg") matches the container — no restart needed."
+    else
+        LOG " ${ctr}: $(basename "$host_cfg") has changed, restarting..."
+        docker restart "$ctr" >/dev/null || WARN "docker restart ${ctr} failed; restart it by hand to apply the new config."
+    fi
+}
+
 [ $# -eq 0 ] && usage
 
 ACTION=$1
+# Missing values must be caught before any docker action; `down` is not checked,
+# so a host in this state can still be stopped.
+case "$ACTION" in
+    all|restart) bash "${SCRIPT_DIR}/pre-deploy.sh" || exit $? ;;
+esac
 ensure_network
 
 case "$ACTION" in
@@ -83,6 +129,10 @@ case "$ACTION" in
         ensure_db
         LOG " Pulling images and starting containers (first run downloads several GB — this can take a few minutes depending on network and disk speed)..."
         tiger_compose up -d
+        # restart) needs none of this: down + up recreates the containers anyway.
+        # alloy-config.alloy exists only in resource/_shared/; tiger_res falls back to it.
+        restart_if_config_changed prometheus "$(tiger_res prometheus.yml)" /etc/prometheus/prometheus.yml
+        restart_if_config_changed alloy "$(tiger_res alloy-config.alloy)" /etc/alloy/config.alloy
         LOG " Observability stack is up. Access Grafana at http://localhost:${GRAFANA_PORT:-3000} (User: admin / Pass: ${GRAFANA_PASS:-CHANGE_ME})"
         ;;
     down)

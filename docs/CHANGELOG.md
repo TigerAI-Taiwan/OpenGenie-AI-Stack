@@ -1,5 +1,20 @@
 # Changelog
 
+## [Unreleased]
+
+- Lemonade（amd）：image 釘在 `v11.9.0` 並以 `user: "0:0"`（root）執行，修正全新部署（新建 `lemonade-*-cache` volume）時 v11 以 uid 10001 寫不進 root 擁有的掛載點、三個容器 CrashLoop；`lemond` 明確傳入 config_dir。
+- Lemonade（amd）：`GGML_VULKAN_DEVICE_*` 更名為 `GGML_VK_VISIBLE_DEVICES_*`（目前的 ggml 不讀取舊名，設了沒有作用）。既有 `.env` 若設過舊名請改成新名；沒有相容 fallback。
+- 新增部署前秘密檢查：`02`／`03`／`04`／`05`／`10` 各一支唯讀 `pre-deploy.sh`，空值、全空白、精確的 `CHANGE_ME` 一律視為未設定（compose 對空值會退回字面 `CHANGE_ME`）。`master-deploy.sh all`／`app`／`restart` 先檢查全部模組，有任何缺項就一個模組都不部署（restart 也不會先重啟前面的模組）並一次列出；新增 `master-deploy.sh pre-deploy` 只做檢查。`03`、`10` 單獨部署時也會檢查 `PG_PASS`。
+- `04-automation-n8n`：`check_encryption_key` 移入 `pre-deploy.sh`，另檢查資料庫密碼（`DB_POSTGRESDB_PASSWORD`，未設時取 `PG_PASS`）。三份 `.env.<platform>.example` 的 `DB_POSTGRESDB_PASSWORD` 改為註解（預設沿用 `PG_PASS`）；既有 `.env` 若仍是 `DB_POSTGRESDB_PASSWORD='CHANGE_ME'`，請刪掉該行。
+- **行為變更**：`.env` 仍有 `CHANGE_ME` 或空值時，各模組的 `all`、`restart` 與會用到這些秘密的動作會被擋下；`down` 不受影響。
+- 被擋下的既有機器不要直接在 `.env` 填新值：`PG_PASS` 用 `[MISSING]` 訊息印出的單行指令，先在資料庫 `ALTER USER`（SQL 走 stdin、`ON_ERROR_STOP`），成功才寫進 `.env`，然後重新部署 `03`／`04`／`10`；`N8N_ENCRYPTION_KEY` 若一直以 `CHANGE_ME` 執行，n8n 2.x 無法原地換金鑰（換了會因 `deployment_key` 解不開而拒絕啟動），不要只改 `.env`；唯一的路是新的空 n8n 資料庫搭配新金鑰，匯入事先匯出的 credentials 與 workflows，屬有損遷移（使用者、執行紀錄、變數等不會搬過去），須人工規劃；以 `--decrypted` 匯出的明文檔要放在 n8n 資料目錄以外、只有 root 能讀的目錄，用完即刪（資料目錄是 775、workflow 讀得到、08 備份也會打包）。詳細指令見各 `[MISSING]` 訊息。
+- 部署失敗時 ERR trap 改印「目錄/檔名 line N」。
+- 健康檢查：`curl` 加 5 秒逾時；Ollama／OpenWebUI／n8n／Qdrant／Docling 的埠改讀 `.env`；Lemonade 改打 `/live`，且不再檢查由 tiger-mode 互斥待命的 rag／embed。
+- TPS benchmark：Ollama 位址改由 `.env` 的 `OLLAMA_PORT` 解析後經 `OLLAMA_HOST` 傳入（舊版永遠讀不到改過的埠）；沿用的 `OLLAMA_HOST` 會補上 `http://`，`0.0.0.0` 改打 `localhost`；查詢模型清單加 5 秒逾時。
+- `10-observability-grafana`：`prometheus.yml`／`alloy-config.alloy` 內容變更後，`deploy.sh all` 會重啟對應容器（原本沿用舊設定且不報錯）。
+- `prometheus.yml`：移除空的 `docker-containers` job；nvidia／arm64 補上 `loki` job。
+- n8n 預設 image 改用 `stable` tag（目前與 `latest` 指向同一版本）。既有 `.env` 的 `N8N_IMAGE` 不會自動改變。
+
 ## [v3.2.0] - 2026-08-24
 
 - 平台驗證由子字串比對改為等值比對，`TIGER_PLATFORM="amd nvidia"` 不再被放行。

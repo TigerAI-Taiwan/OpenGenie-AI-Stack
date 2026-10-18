@@ -86,12 +86,14 @@ DEPLOY_STEPS=(
 VALIDATION_MODULE_DIR="$SCRIPT_DIR/07-validation-stack"
 
 usage() {
-    echo "Usage: sudo $0 {init | all | restart | system | app | status | check | backup | restore | clean}"
+    echo "Usage: sudo $0 {init | pre-deploy | all | restart | system | app | status | check | backup | restore | clean}"
     echo ""
     echo "  init   : [Mandatory] Hardware assessment; if the GPU driver is not ready, installs it"
     echo "           first and asks for a reboot, then re-run init"
     echo "           (exit code 10 means: driver installed, reboot required)"
+    echo "  pre-deploy: Run every module's pre-deploy.sh only (checks only; deploys nothing; reports all missing secrets at once)"
     echo "  all    : Execute full deployment (Phase 00 → 10)"
+    echo "           (all/app/restart run pre-deploy first and deploy nothing if any item is missing)"
     echo "  restart: Re-run every migrated module with its 'restart' action"
     echo "  system : Execute Phase 00 system initialization (GPU driver + Docker)"
     echo "  app    : Execute App layer deployment (Phase 01-10 + 99)"
@@ -191,6 +193,36 @@ run_step() {
     fi
 }
 
+# --- 5.5) pre-deploy ---------------------------------------------------------
+# Exit codes of each module's pre-deploy.sh: 0 all set / 1 something missing /
+# anything else = the check itself could not run. Every module is checked before
+# reporting, and if anything is missing no module is deployed at all.
+run_predeploy_all() {
+    local f mod rc bad=0
+    LOG "pre-deploy checks"
+    # The glob expands in directory-name order. Keep it that way: a future module
+    # that depends on an earlier one's output relies on this order.
+    for f in "$SCRIPT_DIR"/*/pre-deploy.sh; do
+        [ -f "$f" ] || continue
+        mod="$(basename "$(dirname "$f")")"
+        rc=0
+        bash "$f" || rc=$?
+        case "$rc" in
+            0) ;;
+            1) bad=$((bad + 1)) ;;
+            *) ERROR "${mod}/pre-deploy.sh could not complete its check (exit ${rc}) — cannot tell whether anything is missing. Aborting; nothing was deployed." ;;
+        esac
+    done
+    if [ "$bad" -gt 0 ]; then
+        RULE
+        echo -e "${RED}[Master FATAL]${NC} ${bad} module(s) have missing items — nothing was deployed. Fix every [MISSING] item above, then confirm with:" >&2
+        echo "    sudo $0 pre-deploy" >&2
+        RULE
+        exit 1
+    fi
+    LOG "pre-deploy checks all passed."
+}
+
 # --- 6) Actions --------------------------------------------------------------
 case "${1:-}" in
     init)
@@ -229,7 +261,11 @@ case "${1:-}" in
         LOG "GPU driver active — running hardware advisor..."
         run_step "00-pre-flight-advisor"
         ;;
+    pre-deploy)
+        run_predeploy_all
+        ;;
     all)
+        run_predeploy_all
         for step in "${DEPLOY_STEPS[@]}"; do
             run_step "$step"
         done
@@ -257,6 +293,7 @@ case "${1:-}" in
         WARN "If this is the first run of Phase 00, please reboot: sudo reboot"
         ;;
     restart)
+        run_predeploy_all
         for step in "${DEPLOY_STEPS[@]}"; do
             run_step "$step" restart
         done
@@ -267,6 +304,7 @@ case "${1:-}" in
         LOG "System initialization completed"
         ;;
     app)
+        run_predeploy_all
         for step in "${DEPLOY_STEPS[@]:1}"; do
             run_step "$step"
         done
