@@ -48,6 +48,19 @@ services:
       - N8N_METRICS=${N8N_METRICS:-true}
       - N8N_METRICS_INCLUDE_QUEUE_METRICS=${N8N_METRICS_INCLUDE_QUEUE_METRICS:-true}
       - N8N_LOG_FORMAT=${N8N_LOG_FORMAT:-json}
+      # AI Assistant (sandbox / web search) — main only: the instance-ai module
+      # registers with instanceTypes ['main'], so the worker never loads it and
+      # these would have no effect there.
+      # Upstream n8n variable name. deploy.sh exports the real value derived from
+      # N8N_AI_ASSISTANT_ENABLED; this false is the fallback for running compose
+      # directly without deploy.sh (there is no sandbox container to talk to).
+      - N8N_INSTANCE_AI_SANDBOX_ENABLED=${N8N_INSTANCE_AI_SANDBOX_ENABLED:-false}
+      - N8N_INSTANCE_AI_SANDBOX_PROVIDER=n8n-sandbox
+      - N8N_SANDBOX_SERVICE_URL=http://n8n-sandbox-api:8080
+      - N8N_SANDBOX_SERVICE_API_KEY=${SANDBOX_API_KEYS:-CHANGE_ME}
+      # Derived by deploy.sh from the master switch; empty while searxng is not
+      # running means web search is not configured.
+      - N8N_INSTANCE_AI_SEARXNG_URL=${N8N_INSTANCE_AI_SEARXNG_URL:-}
       - NODES_EXCLUDE=[]
       - N8N_PROXY_HOPS=1
       - N8N_BLOCK_FILE_ACCESS_TO_N8N_FILES=false
@@ -112,6 +125,175 @@ services:
         max-size: "50m"
         max-file: "3"
 
+  # --- AI Assistant sandbox (one-shot cert signing -> API control plane -> runner data plane) ---
+  # All three images ship amd64 + arm64 manifests, so they live in base for all platforms.
+  #
+  # All three carry profiles: [sandbox] and do not start by default: an upgraded
+  # host must not suddenly gain a privileged DinD, and the inner dockerd would go
+  # and pull the sandbox image (nodes share an egress IP and hit the Docker Hub
+  # rate limit). To use it, set N8N_AI_ASSISTANT_ENABLED=true in .env.
+  sandbox-certs:
+    profiles: ["sandbox"]
+    image: n8nio/n8n-sandbox-service-api:${SANDBOX_VERSION:-1.3.4}
+    container_name: n8n-sandbox-certs
+    user: "0:0"                        # root is needed to chown /tls/api to sandbox-api
+    entrypoint: ["sh", "-c"]
+    command:
+      # The SANs must equal the network aliases below and the host of each
+      # service's base URL, or mTLS verification fails. The upstream compose
+      # example's control SAN (…-local-1) does not match its base URL; changed
+      # here on purpose.
+      - >-
+        bootstrap-mtls.sh
+        --out-dir /tls
+        --api-san n8n-sandbox-api
+        --control-san-prefix n8n-sandbox-runner
+        && chown -R sandbox-api:sandbox-api /tls/api
+    environment:
+      NUM_RUNNERS: ${SANDBOX_NUM_RUNNERS:-1}
+    volumes:
+      # Host bind so the certificates survive `down`; the script is idempotent,
+      # delete this directory to re-sign.
+      - ${SANDBOX_TLS_DIR:-/home/wrt/TigerAI/node/sandbox}:/tls
+    networks:
+      - ai_stack_net
+    restart: "no"                      # one-shot; a restart would just redo the work
+    logging: &sandbox_logging
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+  sandbox-api:
+    profiles: ["sandbox"]
+    image: n8nio/n8n-sandbox-service-api:${SANDBOX_VERSION:-1.3.4}
+    container_name: n8n-sandbox-api
+    restart: unless-stopped
+    depends_on:
+      sandbox-certs:
+        condition: service_completed_successfully
+    # No host port: n8n reaches it over ai_stack_net at http://n8n-sandbox-api:8080.
+    volumes:
+      - ${SANDBOX_TLS_DIR:-/home/wrt/TigerAI/node/sandbox}/api:/tls:ro
+      - sandbox-api-data:/var/lib/n8n-sandbox-api
+    environment:
+      SANDBOX_API_KEYS: ${SANDBOX_API_KEYS:-CHANGE_ME}
+      # These two must match the runner's variables of the same meaning, or the
+      # runner cannot register.
+      SANDBOX_API_RUNNER_REGISTRATION_TOKEN: ${SANDBOX_REGISTRATION_TOKEN:-CHANGE_ME}
+      SANDBOX_API_RUNNER_API_KEY: ${SANDBOX_RUNNER_API_KEY:-CHANGE_ME}
+      SANDBOX_API_GRPC_TLS_CERT_FILE: /tls/grpc-server.crt
+      SANDBOX_API_GRPC_TLS_KEY_FILE: /tls/grpc-server.key
+      SANDBOX_API_GRPC_TLS_CLIENT_CA_FILE: /tls/ca.crt
+      SANDBOX_API_RUNNER_CONTROL_GRPC_TLS_CA_FILE: /tls/ca.crt
+      SANDBOX_API_RUNNER_CONTROL_GRPC_TLS_CERT_FILE: /tls/control-grpc-api-client.crt
+      SANDBOX_API_RUNNER_CONTROL_GRPC_TLS_KEY_FILE: /tls/control-grpc-api-client.key
+      # Must be the SAN on the runner's control certificate (= control-san-prefix + "-1").
+      SANDBOX_API_RUNNER_CONTROL_GRPC_TLS_SERVER_NAME: n8n-sandbox-runner-1
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 5s
+    networks:
+      ai_stack_net:
+        aliases:
+          - n8n-sandbox-api            # must equal --api-san
+    logging: *sandbox_logging
+
+  sandbox-runner-1:
+    profiles: ["sandbox"]
+    image: n8nio/n8n-sandbox-service-runner-dind:${SANDBOX_VERSION:-1.3.4}
+    # The upstream Linux production path is runtime: sysbox-runc (unprivileged
+    # DinD), but with sysbox-ce 0.7.1 /sys/class/net does not show the bridge the
+    # inner dockerd creates, so the runner's ensure-bridge policy always fails
+    # (stat /sys/class/net/br-xxxx: no such file). Do not switch back until sysbox
+    # is fixed.
+    privileged: true
+    container_name: n8n-sandbox-runner-1
+    restart: unless-stopped
+    depends_on:
+      sandbox-certs:
+        condition: service_completed_successfully
+      sandbox-api:
+        condition: service_healthy
+    volumes:
+      - ${SANDBOX_TLS_DIR:-/home/wrt/TigerAI/node/sandbox}/runner:/tls:ro
+      # Data root of the inner dockerd; without it every restart re-pulls the
+      # sandbox image. If SANDBOX_RUNNER_DEFAULT_DISK_QUOTA_MB is set > 0, the
+      # mount point must become /var/lib/docker-pool.
+      - sandbox-runner-1-docker:/var/lib/docker
+    environment:
+      SANDBOX_RUNNER_API_KEYS: ${SANDBOX_RUNNER_API_KEY:-CHANGE_ME}
+      SANDBOX_RUNNER_REGISTRATION_TOKEN: ${SANDBOX_REGISTRATION_TOKEN:-CHANGE_ME}
+      # The inner dockerd pulls this image for every sandbox; the first pull needs
+      # outbound egress.
+      SANDBOX_RUNNER_DOCKER_SANDBOX_IMAGE: n8nio/n8n-sandbox-service-sandbox:${SANDBOX_VERSION:-1.3.4}
+      SANDBOX_RUNNER_API_GRPC_ADDR: n8n-sandbox-api:9090
+      # The host must be the control certificate's SAN (see sandbox-certs).
+      SANDBOX_RUNNER_HTTP_BASE_URL: https://n8n-sandbox-runner-1:8080
+      SANDBOX_RUNNER_CONTROL_GRPC_LISTEN_ADDR: ":9091"
+      SANDBOX_RUNNER_CONTROL_GRPC_ADVERTISE_ADDR: n8n-sandbox-runner-1:9091
+      SANDBOX_RUNNER_REGISTRATION_GRPC_SERVER_NAME: n8n-sandbox-api
+      SANDBOX_RUNNER_REGISTRATION_GRPC_CA_FILE: /tls/ca.crt
+      SANDBOX_RUNNER_REGISTRATION_GRPC_CERT_FILE: /tls/grpc-client.crt
+      SANDBOX_RUNNER_REGISTRATION_GRPC_KEY_FILE: /tls/grpc-client.key
+      SANDBOX_RUNNER_CONTROL_GRPC_TLS_CERT_FILE: /tls/control-grpc-server.crt
+      SANDBOX_RUNNER_CONTROL_GRPC_TLS_KEY_FILE: /tls/control-grpc-server.key
+      SANDBOX_RUNNER_CONTROL_GRPC_TLS_CLIENT_CA_FILE: /tls/ca.crt
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      # --no-check-certificate: this listener serves the control certificate
+      # signed by the private CA.
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "--no-check-certificate", "https://localhost:8080/readyz"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 20s
+    networks:
+      ai_stack_net:
+        aliases:
+          - n8n-sandbox-runner-1       # must equal the control certificate SAN and the base URL host
+    logging: *sandbox_logging
+
+  # Web search backend for the AI Assistant. n8n reaches it in-network at
+  # http://searxng:8080. Host port 30366: 8080 is taken by openwebui.
+  #
+  # Its profile stays separate from sandbox (upstream defines web search as an
+  # independent option, and the risk level differs), but deploy.sh always brings
+  # both profiles up together from the master switch N8N_AI_ASSISTANT_ENABLED.
+  searxng:
+    profiles: ["searxng"]
+    image: ${SEARXNG_IMAGE:-searxng/searxng:latest}
+    container_name: searxng
+    restart: always
+    ports:
+      # Loopback only: exposing it makes a public search proxy, and the upstream
+      # engines would ban this host's egress IP.
+      - "127.0.0.1:${SEARXNG_PORT:-30366}:8080"
+    networks:
+      - ai_stack_net
+    volumes:
+      - ./searxng/settings.yml:/etc/searxng/settings.yml:ro
+    environment:
+      - SEARXNG_BASE_URL=${SEARXNG_BASE_URL:-http://searxng:8080/}
+      - SEARXNG_SECRET=${SEARXNG_SECRET:-CHANGE_ME}
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    logging: *sandbox_logging
+
 networks:
   ai_stack_net:
     external: true
+
+volumes:
+  sandbox-api-data:            # sandbox-api's SQLite storage
+  sandbox-runner-1-docker:     # data root of the runner's inner dockerd

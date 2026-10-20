@@ -52,11 +52,41 @@ ensure_db() {
     fi
 }
 
+# --- Guard: QDRANT_API_KEY must not be empty or the install placeholder ---
+# Qdrant 6333 is reachable on the LAN and its API key is the only control.
+# Without the key (or with the wrong one) OpenWebUI gets 401, and silently: the
+# container is Running, /health returns 200, chat works, only RAG is dead.
+# It must be the ADMIN key, not the read-only one: OpenWebUI does
+# create_collection / upsert / delete_collection.
+# 05-rag-stack's pre-deploy.sh is the primary check; this is defence in depth for
+# running 03 on its own. Deploy paths only (all / openwebui / restart): redis,
+# ollama and down do not touch OpenWebUI, and blocking them would only leave a
+# host that cannot be stopped.
+check_qdrant_api_key() {
+    if is_placeholder "${QDRANT_API_KEY:-}"; then
+        ERROR "$(printf '%s\n' \
+            "QDRANT_API_KEY is not set or still the install placeholder." \
+            "Without the key Qdrant rejects OpenWebUI with 401, yet the container stays Running," \
+            "/health returns 200 and chat works — only RAG silently dies." \
+            "" \
+            "Set it in ${TIGER_STACK_DIR}/.env to the same admin key 05-rag-stack uses" \
+            "(QDRANT__SERVICE__API_KEY), not the read-only key — the read-only key gets 403 on writes." \
+            "" \
+            "Also: 05-rag-stack needs QDRANT_READ_ONLY_API_KEY as well (03 does not use it)." \
+            "Set it now too, so the 05 deploy is not blocked a second time.")"
+    fi
+}
+
 ACTION="$1"
 # Only actions that start containers are checked; `down` is not, so a host in
 # this state can still be stopped. restart is down + up, so it is checked too.
 case "$ACTION" in
-    all|openwebui|restart) bash "${SCRIPT_DIR}/pre-deploy.sh" || exit $? ;;
+    all|openwebui|restart)
+        bash "${SCRIPT_DIR}/pre-deploy.sh" || exit $?
+        # Before ensure_network, like pre-deploy.sh: a rejected run has not yet
+        # created the network.
+        check_qdrant_api_key
+        ;;
 esac
 ensure_network
 

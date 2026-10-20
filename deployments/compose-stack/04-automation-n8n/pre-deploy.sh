@@ -3,7 +3,9 @@
 # TigerAI Phase 04 — n8n pre-deploy (read-only)
 # Path: deployments/compose-stack/04-automation-n8n/pre-deploy.sh
 #
-# Checks that the n8n encryption key and database password hold real values.
+# Checks that the n8n encryption key and database password hold real values,
+# and — only when N8N_AI_ASSISTANT_ENABLED is true — the four AI Assistant keys.
+# COMPOSE_PROFILES must not be set at all (it would bypass that switch).
 # Read-only: writes nothing and never calls docker.
 # Exit codes: 0 all set / 1 something is missing
 # Output: one `[MISSING] 04-automation-n8n/<name> — <reason>` per missing item,
@@ -92,6 +94,42 @@ if is_placeholder "${DB_POSTGRESDB_PASSWORD:-${PG_PASS:-}}"; then
     printf '    # DB_POSTGRESDB_PASSWORD falls back to PG_PASS: delete its line (or set it to the same value as PG_PASS)\n'
     printf '    sed -i '"'"'/^DB_POSTGRESDB_PASSWORD=/d'"'"' "%s"\n' "$ENV_FILE"
     printf '    # Then make sure PG_PASS is real (02-database pre-deploy prints how). A line in %s/.env overrides the stack .env — delete it there too.\n' "$SCRIPT_DIR"
+fi
+
+# --- COMPOSE_PROFILES ---------------------------------------------------------
+# lib/common.sh loads the env files with `set -a`, and compose also reads
+# COMPOSE_PROFILES from --env-file, so a COMPOSE_PROFILES=sandbox,searxng line
+# would start the sandbox / searxng containers with the master switch off and
+# skip the key check below. Blocked whenever it is non-empty; the switch is the
+# only supported way in. `down` is unaffected: it does not run this script.
+# Only 04 uses compose profiles today, so the check lives here alone; a module
+# that adds profiles later needs the same check.
+if [ -n "${COMPOSE_PROFILES:-}" ]; then
+    missing=$((missing + 1))
+    printf '[MISSING] %s/COMPOSE_PROFILES — set to "%s"; do not set it: it enables compose profiles directly, bypassing N8N_AI_ASSISTANT_ENABLED and its key check. Use N8N_AI_ASSISTANT_ENABLED=true instead\n' "$MOD" "$COMPOSE_PROFILES"
+    printf '    # Delete the line from the stack .env and from %s/.env (it overrides the stack .env) if it is there:\n' "$SCRIPT_DIR"
+    printf '    sed -i '"'"'/^COMPOSE_PROFILES=/d'"'"' "%s"\n' "$ENV_FILE"
+    printf '    if [ -f "%s/.env" ]; then sed -i '"'"'/^COMPOSE_PROFILES=/d'"'"' "%s/.env"; fi\n' "$SCRIPT_DIR" "$SCRIPT_DIR"
+    printf '    # If it is exported in your shell instead (sudo -E passes it on): unset COMPOSE_PROFILES\n'
+fi
+
+# --- AI Assistant keys -------------------------------------------------------
+# Checked only when the master switch is on; a host without the feature keeps
+# CHANGE_ME here and must pass. These are freshly generated keys, not decryption
+# keys for existing data, so generating new ones is safe (unlike
+# N8N_ENCRYPTION_KEY above).
+# Keep is_true identical to the copy in deploy.sh, which turns the switch into
+# compose profiles.
+is_true() { case "${1:-}" in true|TRUE|True|1|yes|on) return 0 ;; *) return 1 ;; esac; }
+if is_true "${N8N_AI_ASSISTANT_ENABLED:-false}"; then
+    for k in SANDBOX_API_KEYS SANDBOX_REGISTRATION_TOKEN SANDBOX_RUNNER_API_KEY SEARXNG_SECRET; do
+        is_placeholder "${!k:-}" || continue
+        missing=$((missing + 1))
+        printf '[MISSING] %s/%s — N8N_AI_ASSISTANT_ENABLED is true but this is not set or still a placeholder\n' "$MOD" "$k"
+        printf '    # Generate a random value (writes %s; delete the line from %s/.env if it is there — it overrides the stack .env):\n' "$ENV_FILE" "$SCRIPT_DIR"
+        printf '    if grep -q "^%s=" "%s"; then sed -i "s|^%s=.*|%s=$(openssl rand -hex 32)|" "%s"; else { echo; echo "%s=$(openssl rand -hex 32)"; } >> "%s"; fi\n' \
+            "$k" "$ENV_FILE" "$k" "$k" "$ENV_FILE" "$k" "$ENV_FILE"
+    done
 fi
 
 printf 'PRE-DEPLOY %s: %d missing\n' "$MOD" "$missing"

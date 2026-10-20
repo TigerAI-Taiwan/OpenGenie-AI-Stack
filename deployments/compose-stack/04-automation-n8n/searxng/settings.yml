@@ -1,0 +1,17 @@
+# SearXNG — web search backend for the n8n AI Assistant
+# use_default_settings: true -> only the keys below are overridden; engine
+# definitions come from the image's built-in settings.
+use_default_settings: true
+
+server:
+  # secret_key comes from compose's SEARXNG_SECRET, so this file holds no secret
+  # and can be version-controlled.
+  # The limiter is meant to keep bots off public instances; it also blocks API calls.
+  limiter: false
+
+search:
+  # The image defaults to [html] only; n8n's searxngSearch() reads JSON, so
+  # without json every query fails.
+  formats:
+    - html
+    - json
