@@ -10,6 +10,7 @@
 # host-side scripts (install.sh, backup/restore, migrations) cannot take that.
 #
 #   LOG / SKIP   -> stdout      WARN / ERROR -> stderr, ERROR exits 1
+#   RULE         red separator line -> stderr
 #   prefix  = ${TIGER_LOG_PREFIX:-${LOG_PREFIX:-TigerAI}}, evaluated at CALL
 #             time, so setting it after sourcing works. New code must set
 #             TIGER_LOG_PREFIX: setting only LOG_PREFIX lets any exported
@@ -77,6 +78,10 @@ ERROR() {
     local p="${TIGER_LOG_PREFIX:-${LOG_PREFIX:-TigerAI}}" c="${TIGER_LOG_CONTEXT:-}"
     echo -e "${RED}[${p} ERROR]${NC}${c:+ ${c}} $*" >&2
     exit 1
+}
+
+RULE() {
+    echo -e "${RED}════════════════════════════════════════${NC}" >&2
 }
 
 # Aliases used by the pre-merge deploy.sh scripts.

@@ -257,9 +257,9 @@ DB_RESTORED=()     # databases whose dump finished loading
 DB_IN_FLIGHT=""    # the database being restored right now
 # ""        untouched (dropdb not run yet, or dropdb failed -> the DB is intact)
 # "dropped"  dropdb done, createdb not -> the DB does not exist at all
-# "empty"    dropped+re-created, dump not loaded yet -> the DB exists but is empty
+# "empty"    dropped+re-created, dump not fully loaded -> the DB exists, empty or partially loaded
 DB_IN_FLIGHT_STATE=""
-# 0 = 沒跑到；1 = 載入中斷（無 ON_ERROR_STOP 且每句自動 commit，套用到哪裡未知、
+# 0 = 沒跑到；1 = 載入中斷（每句自動 commit，套用到哪裡未知、
 # 無法回滾）；2 = 完整載入。1 與 2 都代表 roles／密碼已被動過，所以中止報告不能說
 # 「什麼都沒變」，但兩者的確定程度不同，措辭要分開。
 GLOBALS_APPLIED=0
@@ -294,7 +294,7 @@ report_abort() {
     if [ -n "$DB_IN_FLIGHT" ]; then
         case "$DB_IN_FLIGHT_STATE" in
             empty)
-                echo "  → ${DB_IN_FLIGHT} 目前是空庫（已 drop+create 但 psql 載入失敗）"
+                echo "  → ${DB_IN_FLIGHT} 目前是空庫或只載入一部分（已 drop+create 但 psql 載入失敗）"
                 advice="檢查備份檔完整性後重跑"
                 damaged=1 ;;
             dropped)
@@ -312,7 +312,7 @@ report_abort() {
         # 沒有任何資料庫被 drop（gate 擋下、dropdb 失敗、或 globals 階段就掛了）。
         echo "  → 尚未有任何資料庫被 drop"
         if [ "$GLOBALS_APPLIED" -eq 1 ]; then
-            # globals 刻意不帶 ON_ERROR_STOP（見 restore_db 的註解），每句 CREATE ROLE /
+            # globals 不包在交易裡，每句 CREATE ROLE /
             # ALTER ROLE 各自 autocommit —— 所以真正特別的不是「密碼被改」（那是還原的
             # 正常語意），而是「套用到哪裡未知」。密碼本身由 verify_pg_password 實測。
             echo "  → 但 globals 載入中斷，已套用到哪裡無法確定，也無法回滾"
@@ -533,10 +533,9 @@ restore_db() {
     # Roles/tablespaces live outside any single database, so the per-DB dumps do
     # not contain them and must be re-created first: every dump's
     # `GRANT ... TO <role>` fails if the role does not exist yet.
-    # No ON_ERROR_STOP on purpose — pg_dumpall re-emits CREATE ROLE for roles
-    # that already exist (notably "$PG_USER", which initdb recreates from
-    # POSTGRES_USER), which errors harmlessly while the following ALTER ROLE
-    # still applies.
+    # pg_dumpall re-emits CREATE ROLE for roles that already exist ("$PG_USER"
+    # always does); the sed turns only that duplicate into a no-op, and
+    # ON_ERROR_STOP still stops on every other error.
     local globals="${RESTORE_DIR}/globals.sql.gz"
     if [ -f "$globals" ]; then
         LOG "Restoring global objects (roles, tablespaces) from globals.sql.gz..."
@@ -546,10 +545,13 @@ restore_db() {
         # The end of the run re-checks it for real — see verify_pg_password().
         WARN "這會把 '${PG_USER}' 的密碼一併回捲成【備份當時】的值 —— 密碼也是叢集狀態的一部分，這是還原的正常語意。若備份之後改過 .env 的 PG_PASS，還原結束時的實測會告訴你，並印出修復指令。"
         GLOBALS_APPLIED=1
-        gunzip -c "$globals" | docker exec -i "$PG_CONTAINER" psql -U "$PG_USER" -d postgres
+        # shellcheck disable=SC2016  # $tiger$ is a PostgreSQL dollar-quote tag, not a shell expansion
+        gunzip -c "$globals" \
+            | sed 's/^CREATE ROLE \(.*\);$/DO $tiger$BEGIN CREATE ROLE \1; EXCEPTION WHEN duplicate_object THEN NULL; END$tiger$;/' \
+            | docker exec -i "$PG_CONTAINER" psql -v ON_ERROR_STOP=1 -U "$PG_USER" -d postgres
         GLOBALS_APPLIED=2
     else
-        WARN "No globals.sql.gz in $RESTORE_DIR (backup predates globals support); roles are NOT restored. Any GRANT to a role other than '${PG_USER}' will fail below."
+        WARN "No globals.sql.gz in $RESTORE_DIR (backup predates globals support); roles are NOT restored. If a dump references a role missing here (OWNER TO / GRANT), the restore aborts on that database AFTER it has been dropped and re-created, and the databases after it are not restored."
     fi
 
     # --force only reaches dropdb when the operator asked for it on the command line.
@@ -560,8 +562,8 @@ restore_db() {
     fi
 
     # DB_IN_FLIGHT / DB_IN_FLIGHT_STATE feed the abort report: between dropdb and a
-    # finished psql load the database exists but is empty, and that is exactly the
-    # state the operator cannot see from the last error line alone.
+    # finished psql load the database exists, empty or partially loaded, and that
+    # is exactly the state the operator cannot see from the last error line alone.
     if [ "$has_legacy" -eq 1 ]; then
         LOG "Restoring legacy dump into '${PG_DB_NAME}'..."
         DB_IN_FLIGHT="$PG_DB_NAME"; DB_IN_FLIGHT_STATE=""
@@ -569,7 +571,7 @@ restore_db() {
         DB_IN_FLIGHT_STATE="dropped"
         docker exec "$PG_CONTAINER" createdb -U "$PG_USER" "$PG_DB_NAME"
         DB_IN_FLIGHT_STATE="empty"
-        gunzip -c "$legacy" | docker exec -i "$PG_CONTAINER" psql -U "$PG_USER" "$PG_DB_NAME"
+        gunzip -c "$legacy" | docker exec -i "$PG_CONTAINER" psql -v ON_ERROR_STOP=1 -U "$PG_USER" "$PG_DB_NAME"
         DB_RESTORED+=("$PG_DB_NAME"); DB_IN_FLIGHT=""; DB_IN_FLIGHT_STATE=""
     else
         for db in "${dbs[@]}"; do
@@ -580,7 +582,9 @@ restore_db() {
             DB_IN_FLIGHT_STATE="dropped"
             docker exec "$PG_CONTAINER" createdb -U "$PG_USER" "$db"
             DB_IN_FLIGHT_STATE="empty"
-            gunzip -c "$file" | docker exec -i "$PG_CONTAINER" psql -U "$PG_USER" "$db"
+            # Without ON_ERROR_STOP psql still exits 0 on SQL errors, so a broken
+            # dump would be reported as restored.
+            gunzip -c "$file" | docker exec -i "$PG_CONTAINER" psql -v ON_ERROR_STOP=1 -U "$PG_USER" "$db"
             DB_RESTORED+=("$db"); DB_IN_FLIGHT=""; DB_IN_FLIGHT_STATE=""
         done
     fi

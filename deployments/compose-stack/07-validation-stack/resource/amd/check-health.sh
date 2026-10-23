@@ -24,11 +24,12 @@ tiger_check_health_main
 
 # Phase 5: Lemonade Core — amd only.
 LOG "--- [Phase 5: Lemonade Core] ---"
-# Lemonade answers 401 when an API key is set but not supplied. That still
+# /live is lemond's liveness endpoint, the same one the container healthcheck
+# uses. Lemonade answers 401 when an API key is set but not supplied. That still
 # means the service is up, hence the 200|401 alternation.
-check_endpoint "Lemonade EDU (8800)" "http://$TARGET_HOST:8800/health" "200|401" \
-    || WARN "Lemonade EDU might be stopped (check tiger-mode)"
-check_endpoint "Lemonade RAG (8801)" "http://$TARGET_HOST:8801/health" "200|401" \
-    || WARN "Lemonade RAG might be stopped (check tiger-mode)"
+check_endpoint "Lemonade EDU (8800)" "http://$TARGET_HOST:8800/live" "200|401" \
+    || WARN "Lemonade EDU (always-on) might be stopped"
+# lemonade-rag and lemonade-embed are not checked: tiger-mode runs exactly one of
+# them, so the idle one not answering is normal and a check would only be noise.
 
 LOG "Validation Check Finished."

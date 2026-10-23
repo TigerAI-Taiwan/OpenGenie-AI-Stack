@@ -102,7 +102,11 @@ check_endpoint() {
     LOG "Checking $name ($url)..."
     # -L: a redirecting endpoint reports its final code, not 302. Every call site
     # below expects 200; a bare "302" pattern could never match here.
-    local http_code=$(curl -sL -o /dev/null -w "%{http_code}" "$url")
+    # --max-time is required: a hung service (port open, never answering) would
+    # make curl wait forever and stall the whole check. Every URL here is a
+    # readiness endpoint that does no model work; a service that is down
+    # answers "connection refused" at once.
+    local http_code=$(curl -sL --max-time 5 -o /dev/null -w "%{http_code}" "$url")
     if echo "$http_code" | grep -qE "$expected_code"; then
         echo -e "  [${GREEN}PASS${NC}] $name is healthy. (HTTP $http_code)"
     else
@@ -141,14 +145,18 @@ fi
 
 # 3. AI Stack Checks
 LOG "--- [Phase 3: AI Interfaces] ---"
-check_endpoint "Ollama API" "http://$TARGET_HOST:11434/api/tags" "200" || true
-check_endpoint "OpenWebUI" "http://$TARGET_HOST:8080/health" "200" || true
+# Ports come from env, with the same defaults as each module's
+# docker-compose.base.yaml ${VAR:-N}. Hard-coded, a port moved to avoid a
+# conflict would show up here as a row of false FAILs.
+check_endpoint "Ollama API" "http://$TARGET_HOST:${OLLAMA_PORT:-11434}/api/tags" "200" || true
+check_endpoint "OpenWebUI" "http://$TARGET_HOST:${OWUI_PORT:-8080}/health" "200" || true
 
 # 4. Automation & RAG Checks
 LOG "--- [Phase 4: Automation & RAG] ---"
-check_endpoint "n8n Health" "http://$TARGET_HOST:5678/healthz/readiness" "200" || true
-check_endpoint "Qdrant API" "http://$TARGET_HOST:6333/healthz" "200" || true
-check_endpoint "Docling API" "http://$TARGET_HOST:5001/health" "200" || true
+check_endpoint "n8n Health" "http://$TARGET_HOST:${N8N_PORT:-5678}/healthz/readiness" "200" || true
+check_endpoint "Qdrant API" "http://$TARGET_HOST:${QDRANT_PORT:-6333}/healthz" "200" || true
+check_endpoint "Docling API" "http://$TARGET_HOST:${HTTP_DOCLING_PORT:-5001}/health" "200" || true
+# cAdvisor's 8088 is hard-coded in 10-observability's compose too; there is no env to read.
 check_endpoint "cAdvisor" "http://$TARGET_HOST:8088/healthz" "200" || true
 
 # Phase 5 (Lemonade Core) is amd-only and lives in resource/amd/check-health.sh,

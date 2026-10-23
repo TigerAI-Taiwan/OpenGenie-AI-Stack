@@ -34,36 +34,58 @@ usage() {
     exit 1
 }
 
-# --- Guard: the encryption key must not still be the install placeholder ------
-# CHANGE_ME is non-empty, so ${VAR:-fallback} never catches it.
-check_encryption_key() {
-    # Only the new name is accepted, so .env must be migrated; the compose file
-    # still falls back to N8N_SECRET, but this is the one place that can insist.
-    # Unset lands on the same default compose uses, which here IS the placeholder.
-    local val="${N8N_ENCRYPTION_KEY:-CHANGE_ME}"
+# The encryption key, database password and (when the AI Assistant is enabled)
+# AI Assistant key checks live in pre-deploy.sh (called below), so
+# master-deploy.sh can report every module's missing values at once.
 
-    [ "$val" != "CHANGE_ME" ] && return 0
+# --- AI Assistant master switch -> compose profiles ---
+# sandbox (privileged DinD) and searxng (takes host port 30366) sit behind
+# compose profiles and do not start by default; a host whose .env does not set
+# the switch stays as it was, with no extra containers.
+# Keep is_true identical to the copy in pre-deploy.sh, which gates the key check.
+is_true() { case "${1:-}" in true|TRUE|True|1|yes|on) return 0 ;; *) return 1 ;; esac; }
 
-    # Must never read as "just set some key": an operator still on the old name, or
-    # with credentials already encrypted, would generate a fresh one and orphan them.
-    ERROR "$(printf '%s\n' \
-        "N8N_ENCRYPTION_KEY is not set, or is still the .env.example placeholder" \
-        "CHANGE_ME. Deploying that way makes n8n encrypt every credential with the" \
-        "literal string \"CHANGE_ME\", and the container starts normally with no symptom." \
-        "" \
-        "If .env still has N8N_SECRET, that is this key's former name: rename it to" \
-        "N8N_ENCRYPTION_KEY, keep the value EXACTLY as it is, and delete the old line." \
-        "" \
-        "    -N8N_SECRET=<your current value>" \
-        "    +N8N_ENCRYPTION_KEY=<the same value, unchanged>" \
-        "" \
-        "If n8n on this host has already run with a real key, that key is the" \
-        "encryptionKey field in ${N8N_DIR}/config — reuse THAT one. Do not generate a" \
-        "new key: a new one either stops n8n from starting, or leaves every existing" \
-        "credential permanently undecryptable." \
-        "" \
-        "Only on a host where n8n has never started is a fresh key safe:" \
-        "    openssl rand -hex 32")"
+# `if` on purpose rather than `is_true … && …`: when the condition is false the
+# whole && list returns 1. set -e ignores that in the middle of a script, but
+# once such a line becomes the last command of a function or branch, the 1
+# becomes its return value and aborts the caller. `if` does not depend on where
+# the line sits (same reasoning as master-deploy.sh's run_step).
+AI_ENABLED="${N8N_AI_ASSISTANT_ENABLED:-false}"
+# A typo (e.g. "tru") is treated as off, and with the switch off all / main /
+# worker remove the sandbox containers — so say so instead of doing it silently.
+# Warn only; pre-deploy.sh applies the same is_true and needs no change.
+case "$AI_ENABLED" in
+    false|FALSE|False|0|no|off) ;;
+    *)
+        if ! is_true "$AI_ENABLED"; then
+            WARN "N8N_AI_ASSISTANT_ENABLED='${AI_ENABLED}' is not recognised; treating it as off (sandbox / searxng containers will be removed). Use true or false."
+        fi
+        ;;
+esac
+PROFILE_ARGS=()
+if is_true "$AI_ENABLED"; then
+    PROFILE_ARGS+=(--profile sandbox --profile searxng)
+    # While searxng is not running this stays empty (web search not configured)
+    # rather than pointing n8n-main at a host that does not exist.
+    export N8N_INSTANCE_AI_SEARXNG_URL="${N8N_INSTANCE_AI_SEARXNG_URL:-http://searxng:8080}"
+fi
+# Upstream variable name, read by n8n-main itself. Always derived from the master
+# switch and exported (the shell environment wins over --env-file).
+N8N_INSTANCE_AI_SANDBOX_ENABLED="$(is_true "$AI_ENABLED" && echo true || echo false)"
+export N8N_INSTANCE_AI_SANDBOX_ENABLED
+
+# With the switch off, `up` without profiles leaves containers of profiled
+# services alone, so a host switched from true back to false would keep sandbox /
+# searxng running. Stop and remove them explicitly. With nothing to remove it
+# prints "No stopped containers" and exits 0. Named volumes are kept (no -v), so
+# switching back on reuses the runner's image cache. The profiles are passed so
+# the named services are in scope whatever the compose version.
+remove_ai_assistant_if_disabled() {
+    if is_true "$AI_ENABLED"; then
+        return 0
+    fi
+    LOG "N8N_AI_ASSISTANT_ENABLED is off: removing any AI Assistant containers (sandbox / searxng)..."
+    tiger_compose --profile sandbox --profile searxng rm -sf sandbox-certs sandbox-api sandbox-runner-1 searxng
 }
 
 # --- Ensure the dedicated n8n database exists ---
@@ -115,7 +137,9 @@ ACTION="$1"
 # shutting the service down would be worse than the problem. Checked before
 # prep_files / ensure_network / ensure_db, so a rejected run has not yet created
 # directories, a network, or touched the database.
-case "$ACTION" in all|main|worker|restart) check_encryption_key ;; esac
+case "$ACTION" in
+    all|main|worker|restart) bash "${SCRIPT_DIR}/pre-deploy.sh" || exit $? ;;
+esac
 prep_files
 ensure_network
 
@@ -125,30 +149,38 @@ case "$ACTION" in
         # TIGER_N8N_WORKERS comes from tiger-tuning.env when the advisor has run.
         WORKER_COUNT="${TIGER_N8N_WORKERS:-${N8N_WORKERS:-2}}"
         LOG "Starting the n8n stack with $WORKER_COUNT workers..."
-        tiger_compose up -d --scale "n8n-worker=$WORKER_COUNT"
+        remove_ai_assistant_if_disabled
+        tiger_compose "${PROFILE_ARGS[@]}" up -d --scale "n8n-worker=$WORKER_COUNT"
         LOG "✅ n8n deployed: 1 main + $WORKER_COUNT workers"
         ;;
     main)
         ensure_db
         LOG "Starting n8n main only..."
+        remove_ai_assistant_if_disabled
         tiger_compose up -d n8n-main
         ;;
     worker)
         ensure_db
         WORKER_COUNT="${TIGER_N8N_WORKERS:-${N8N_WORKERS:-2}}"
         LOG "Launching the n8n workflow engine (queue mode) with $WORKER_COUNT workers..."
-        tiger_compose up -d --scale "n8n-worker=$WORKER_COUNT"
+        remove_ai_assistant_if_disabled
+        tiger_compose "${PROFILE_ARGS[@]}" up -d --scale "n8n-worker=$WORKER_COUNT"
         ;;
     down)
         LOG "Stopping n8n services..."
-        tiger_compose down
+        # --profile '*': a down without profiles leaves the containers of
+        # profiled services running (sandbox / searxng), and --remove-orphans does
+        # not catch them either.
+        tiger_compose --profile '*' down
         ;;
     restart)
         LOG "Restarting n8n..."
         # Full redeploy on purpose: `docker compose restart` does not re-apply
         # env or compose changes and does not respect --scale, so it cannot
         # reliably restore the multi-worker queue setup.
-        tiger_compose down && bash "$0" all
+        # down stops everything (including a profile that was just switched off);
+        # the `all` run brings up only the profiles currently enabled.
+        tiger_compose --profile '*' down && bash "$0" all
         ;;
     *)
         usage

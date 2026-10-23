@@ -168,6 +168,16 @@ services:
       #    qdrant is defined in another compose file.
       - VECTOR_DB=${OWUI_VECTOR_DB:-qdrant}
       - QDRANT_URI=${QDRANT_URI:-http://qdrant:6333}
+      # Qdrant 6333 is a LAN-reachable plaintext path and its API key is the only
+      # control. Without the key every request gets 401, and silently: the
+      # container is Running, /health returns 200, chat works, only RAG is dead.
+      # It must be the ADMIN key, not the read-only one: OpenWebUI does
+      # create_collection / upsert / delete_collection, and the read-only key
+      # gets 403 on writes.
+      # Not the :? required syntax: that fails at interpolation time and takes
+      # down/ps/logs with it. Empty and placeholder values are blocked by the
+      # deploy-path guard in deploy.sh instead.
+      - QDRANT_API_KEY=${QDRANT_API_KEY}
       # The upstream default of 5s is too tight for the bulk upserts that
       # Admin -> Documents -> Reindex Knowledge Base issues.
       - QDRANT_TIMEOUT=${QDRANT_TIMEOUT:-30}

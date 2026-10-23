@@ -16,6 +16,7 @@
 #     tiger_res <name>           resource lookup (platform -> _shared)
 #     TIGER_PLATFORM / TIGER_STACK_DIR / TIGER_MODULE_DIR / TIGER_MODULE
 #     tiger_env_files            env files that exist, lowest priority first
+#     is_placeholder <value>     true if empty / whitespace / exactly CHANGE_ME
 #
 # This file sets `set -Eeo pipefail` and an ERR trap for the sourcing
 # shell, so module deploy.sh scripts must not set them again.
@@ -53,15 +54,18 @@ export GREEN YELLOW RED BLUE CYAN NC
 TIGER_LOG_PREFIX="${TIGER_LOG_PREFIX:-TigerAI}"
 
 # --- 2) ERR trap -------------------------------------------------------------
-# Print line number / command / exit code on failure. `set -E` above makes
-# functions and subshells inherit the trap.
+# Print file / line number / command / exit code on failure. `set -E` above
+# makes functions and subshells inherit the trap.
+#
+# The file is printed as "<parent dir>/<file>": a module has both deploy.sh and
+# pre-deploy.sh, so a bare line number no longer says which file failed.
 #
 # WARNING: the backticks around $BASH_COMMAND must stay escaped as \`. A trap
 # argument is evaluated as a command at trigger time, so unescaped backticks
 # would command-substitute at that moment — re-running the command that just
 # failed. Do not remove the backslashes.
 # shellcheck disable=SC2154  # rc is assigned inside the trap
-trap 'rc=$?; echo -e "${RED}[${TIGER_LOG_PREFIX} FAILED]${NC} line $LINENO: \`$BASH_COMMAND\` (exit $rc)" >&2; exit $rc' ERR
+trap 'rc=$?; _tiger_f="${BASH_SOURCE[0]:-?}"; case "$_tiger_f" in */*) ;; *) _tiger_f="./$_tiger_f" ;; esac; _tiger_d="${_tiger_f%/*}"; echo -e "${RED}[${TIGER_LOG_PREFIX} FAILED]${NC} ${_tiger_d##*/}/${_tiger_f##*/} line $LINENO: \`$BASH_COMMAND\` (exit $rc)" >&2; exit $rc' ERR
 
 # --- 3) Paths and platform ---------------------------------------------------
 # The parent of lib/ is the stack root (deployments/compose-stack).
@@ -173,6 +177,19 @@ tiger_load_env() {
     set +a
 }
 tiger_load_env
+
+# --- 4b) Placeholder check ---------------------------------------------------
+# A value is a placeholder when it is empty, whitespace only, or exactly
+# CHANGE_ME. CHANGE_ME_<anything> is a real value; no length or strength check.
+# Pass the effective value: after sourcing this file the shell variables already
+# hold tiger-tuning.env < stack .env < module .env.
+is_placeholder() {
+    local v="${1-}"
+    case "$v" in
+        "CHANGE_ME") return 0 ;;
+    esac
+    [ -z "${v//[[:space:]]/}" ]
+}
 
 # --- 5) Docker network -------------------------------------------------------
 TIGER_NETWORK="${TIGER_NETWORK:-ai_stack_net}"

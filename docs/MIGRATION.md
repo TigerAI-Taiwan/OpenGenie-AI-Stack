@@ -457,14 +457,11 @@ The old name is not read by the deployer at all, so skipping this looks exactly
 like having set no key — which is the point. You get:
 
 ```
-[TigerAI n8n ERROR] N8N_ENCRYPTION_KEY is not set, or is still the .env.example
-placeholder CHANGE_ME. …
-
-If .env still has N8N_SECRET, that is this key's former name: rename it to
-N8N_ENCRYPTION_KEY, keep the value EXACTLY as it is, and delete the old line.
-
-    -N8N_SECRET=<your current value>
-    +N8N_ENCRYPTION_KEY=<the same value, unchanged>
+[MISSING] 04-automation-n8n/N8N_ENCRYPTION_KEY — not set or still a placeholder; …
+    # If .env still has N8N_SECRET, that is this key's former name: rename it to N8N_ENCRYPTION_KEY,
+    #   keep the value EXACTLY as it is, and delete the old line:
+    #     -N8N_SECRET=<your current value>
+    #     +N8N_ENCRYPTION_KEY=<the same value, unchanged>
 ```
 
 > **Never change the value while renaming.** The key decrypts every stored n8n
@@ -482,11 +479,12 @@ left on a migrated machine.
 now, a `.env` copied from the example and left unedited deployed happily and n8n
 encrypted every credential with the literal text `CHANGE_ME`.
 
-`04-automation-n8n/deploy.sh` now stops before doing anything:
+`04-automation-n8n/deploy.sh` now stops before doing anything (the check lives
+in `04-automation-n8n/pre-deploy.sh`, which `master-deploy.sh all` / `app` /
+`pre-deploy` also run for every module before deploying any of them):
 
 ```
-[TigerAI n8n ERROR] N8N_ENCRYPTION_KEY = CHANGE_ME — that is the .env.example
-install placeholder, not a key.
+[MISSING] 04-automation-n8n/N8N_ENCRYPTION_KEY — not set or still a placeholder; n8n would encrypt every credential with the literal CHANGE_ME, with no symptom
 ```
 
 This is a **new failure on machines that used to deploy**, which is the point —
@@ -499,26 +497,35 @@ the key it is actually using is on disk, and that is the one you need:
 
 ```bash
 # (a) the key n8n is really using — written on first start, authoritative
-sudo grep -o '"encryptionKey":"[^"]*"' /home/wrt/TigerAI/node/n8n/config
+sudo grep -o '"encryptionKey":[[:space:]]*"[^"]*"' /home/wrt/TigerAI/node/n8n/config
 
-# (b) has anything been encrypted with it?
-docker exec postgres psql -U adm -d n8n -tAc 'SELECT count(*) FROM credentials_entity;'
+# (b) has n8n ever run against this database? Every start-up records its schema
+#     migrations in the migrations table (1.x and 2.x alike), even with no credentials.
+#     Replace public with your DB_POSTGRESDB_SCHEMA if you changed it.
+sudo docker exec postgres psql -U adm -d n8n -tAc 'SELECT count(*) FROM "public".migrations;'
 ```
 
 | state | what to do |
 |---|---|
-| no `config` file — n8n never started here | free choice: `openssl rand -hex 32` |
-| `config` exists, (b) = 0 | a new key is safe, but **move the old `config` aside** or n8n refuses to start on the mismatch |
-| `config` exists, (b) > 0 | **do not change the key** — copy the value from (a) into `.env` verbatim |
+| no `config` AND no n8n database / no `migrations` table — (b) fails with `database "n8n" does not exist` or `relation "public.migrations" does not exist` | free choice: `openssl rand -hex 32` |
+| no `config`, but (b) returns a count | n8n has run: recover the old key from a backup of `config` or an old `.env`; if it is gone, see the lossy path below |
+| `config` exists | **do not change the key** — n8n 2.x refuses to start with a different one; copy the value from (a) into `.env` verbatim |
 
 > Renaming the variable is not setting a key. Changing `.env` from
 > `N8N_SECRET=CHANGE_ME` to `N8N_ENCRYPTION_KEY=CHANGE_ME` changes nothing and
 > the guard still blocks — correctly.
 
-If (a) itself returns `CHANGE_ME` and (b) is greater than zero, you have
-credentials encrypted with the placeholder. That needs a key rotation (export
-decrypted, change the key, re-import); check the exact n8n CLI invocation
-against your own n8n version first.
+If (a) itself returns `CHANGE_ME`, n8n has been running on the placeholder and
+n8n 2.x cannot change its key in place: with a new key it refuses to start
+(`Deployment key 'signing.hmac' cannot be read with this instance encryption
+key` — the `deployment_key` table is encrypted with the old key). Do not just
+edit `.env`. The only path is a new, empty n8n database with a new key,
+importing credentials and workflows exported beforehand. That is a lossy
+migration — users, executions, variables and more are not carried over — and
+has to be planned by hand. Keep the `--decrypted` export (plaintext) outside
+`/home/wrt/TigerAI/node/n8n`, in a directory only root can read, and delete it
+afterwards: that directory is chmod 775, readable by n8n workflows, and packed
+by 08-backup.
 
 ---
 

@@ -9,7 +9,39 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # <module>/resource/_shared/<this file>  ->  ../.. is the module directory.
 MODULE_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+STACK_DIR="$(cd "${MODULE_DIR}/.." && pwd)"
 cd "$SCRIPT_DIR"
+
+# Read just this one variable instead of sourcing the whole .env: an inline
+# comment in .env can run as a command under `source`, which is not worth the
+# risk for a port number. File order matches check-health-common.sh (later
+# wins); `sed 's/\r$//'` strips CRLF. An optional `export ` prefix and one pair
+# of surrounding double or single quotes are accepted.
+read_env_var() {
+  local key="$1" val="" f line
+  for f in "${STACK_DIR}/tiger-tuning.env" "${STACK_DIR}/.env" "${MODULE_DIR}/.env"; do
+    [ -f "$f" ] || continue
+    line=$(sed 's/\r$//' "$f" | grep -E "^[[:space:]]*(export[[:space:]]+)?${key}=" | tail -1 || true)
+    [ -n "$line" ] && val=$(printf '%s' "${line#*=}" | sed "s/#.*\$//; s/[[:space:]]*\$//; s/^[\"']//; s/[\"']\$//")
+  done
+  printf '%s' "$val"
+}
+
+# benchmark_tps.py reads OLLAMA_HOST. An OLLAMA_HOST already in the environment
+# wins; ${VAR:-…} does not expand the fallback then.
+OLLAMA_PORT_RESOLVED="$(read_env_var OLLAMA_PORT)"
+OLLAMA_HOST="${OLLAMA_HOST:-http://localhost:${OLLAMA_PORT_RESOLVED:-11434}}"
+# An inherited OLLAMA_HOST may be the server bind form from .env.example
+# (0.0.0.0:11434): add the scheme (any case), and aim at localhost when the
+# whole host is 0.0.0.0 — not when it merely starts with it.
+case "$OLLAMA_HOST" in
+    [Hh][Tt][Tt][Pp]://*|[Hh][Tt][Tt][Pp][Ss]://*) ;;
+    *) OLLAMA_HOST="http://${OLLAMA_HOST}" ;;
+esac
+if [[ "$OLLAMA_HOST" =~ ^([A-Za-z]+://)0\.0\.0\.0([:/].*)?$ ]]; then
+    OLLAMA_HOST="${BASH_REMATCH[1]}localhost${BASH_REMATCH[2]}"
+fi
+export OLLAMA_HOST
 
 # ⚠️ 不要改回 `pip3 install requests`：近期 Debian/Ubuntu 的系統 Python 是
 #    externally-managed。venv 位置與 05-rag-stack 同慣例。

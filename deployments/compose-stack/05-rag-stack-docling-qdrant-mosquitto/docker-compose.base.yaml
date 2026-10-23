@@ -116,6 +116,12 @@ services:
       # there is no official aarch64 GPU image, so this is silently ignored and
       # Qdrant falls back to CPU indexing.
       - QDRANT__GPU__INDEXING=1
+      # 6333 is bound to 0.0.0.0 (the LAN plaintext path is kept on purpose), so
+      # the API key is the only access control. Deliberately not ${VAR:?}: that
+      # would make `down` fail to parse too and the host could not be stopped;
+      # pre-deploy.sh is the guard.
+      - QDRANT__SERVICE__API_KEY=${QDRANT_API_KEY}
+      - QDRANT__SERVICE__READ_ONLY_API_KEY=${QDRANT_READ_ONLY_API_KEY}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     logging:

@@ -1,28 +1,16 @@
 import requests
 import time
-import json
 import sys
 import os
 
-def load_env():
-    env_vars = {}
-    paths = ['./tiger-tuning.env', '../tiger-tuning.env', '../../tiger-tuning.env']
-    for path in paths:
-        if os.path.exists(path):
-            with open(path, 'r') as f:
-                for line in f:
-                    if '=' in line and not line.startswith('#'):
-                        try:
-                            k, v = line.strip().split('=', 1)
-                            env_vars[k] = v
-                        except ValueError:
-                            continue
-            break
-    return env_vars
+# benchmark-tps.sh resolves this from the env files and passes it in. The old
+# version looked the port up in tiger-tuning.env, where it never is (it lives
+# in .env), so a changed port was always missed.
+DEFAULT_OLLAMA_HOST = "http://localhost:11434"
 
 def get_models(base_url):
     try:
-        response = requests.get(f"{base_url}/api/tags")
+        response = requests.get(f"{base_url}/api/tags", timeout=5)
         if response.status_code == 200:
             return [m['name'] for m in response.json().get('models', [])]
         return []
@@ -70,13 +58,13 @@ def run_benchmark(base_url, model, prompt):
         return None
 
 def main():
-    env = load_env()
-    port = env.get("OLLAMA_PORT", "11434")
-    base_url = f"http://localhost:{port}"
-    
+    base_url = os.environ.get("OLLAMA_HOST", DEFAULT_OLLAMA_HOST).rstrip("/")
+    print(f"Target: {base_url}")
+
     models = get_models(base_url)
     if not models:
-        print("Error: No models found. Please run 'ollama pull llama3' first.")
+        print(f"Error: No models found at {base_url}. "
+              "Ollama unreachable, or run 'ollama pull llama3' first.")
         sys.exit(1)
         
     target_model = sys.argv[1] if len(sys.argv) > 1 and sys.argv[1] else models[0]
