@@ -1,22 +1,18 @@
 # Changelog
 
-## [Unreleased]
+## [v4.0.0] - 2026-10-23
 
-- Lemonade（amd）：image 釘在 `v11.9.0` 並以 `user: "0:0"`（root）執行，修正全新部署（新建 `lemonade-*-cache` volume）時 v11 以 uid 10001 寫不進 root 擁有的掛載點、三個容器 CrashLoop；`lemond` 明確傳入 config_dir。
-- Lemonade（amd）：`GGML_VULKAN_DEVICE_*` 更名為 `GGML_VK_VISIBLE_DEVICES_*`（目前的 ggml 不讀取舊名，設了沒有作用）。既有 `.env` 若設過舊名請改成新名；沒有相容 fallback。
-- 新增部署前秘密檢查：`02`／`03`／`04`／`05`／`10` 各一支唯讀 `pre-deploy.sh`，空值、全空白、精確的 `CHANGE_ME` 一律視為未設定（compose 對空值會退回字面 `CHANGE_ME`）。`master-deploy.sh all`／`app`／`restart` 先檢查全部模組，有任何缺項就一個模組都不部署（restart 也不會先重啟前面的模組）並一次列出；新增 `master-deploy.sh pre-deploy` 只做檢查。`03`、`10` 單獨部署時也會檢查 `PG_PASS`。
-- `04-automation-n8n`：`check_encryption_key` 移入 `pre-deploy.sh`，另檢查資料庫密碼（`DB_POSTGRESDB_PASSWORD`，未設時取 `PG_PASS`）。三份 `.env.<platform>.example` 的 `DB_POSTGRESDB_PASSWORD` 改為註解（預設沿用 `PG_PASS`）；既有 `.env` 若仍是 `DB_POSTGRESDB_PASSWORD='CHANGE_ME'`，請刪掉該行。
-- **行為變更**：`.env` 仍有 `CHANGE_ME` 或空值時，各模組的 `all`、`restart` 與會用到這些秘密的動作會被擋下；`down` 不受影響。
-- 被擋下的既有機器不要直接在 `.env` 填新值：`PG_PASS` 用 `[MISSING]` 訊息印出的單行指令，先在資料庫 `ALTER USER`（SQL 走 stdin、`ON_ERROR_STOP`），成功才寫進 `.env`，然後重新部署 `03`／`04`／`10`；`N8N_ENCRYPTION_KEY` 若一直以 `CHANGE_ME` 執行，n8n 2.x 無法原地換金鑰（換了會因 `deployment_key` 解不開而拒絕啟動），不要只改 `.env`；唯一的路是新的空 n8n 資料庫搭配新金鑰，匯入事先匯出的 credentials 與 workflows，屬有損遷移（使用者、執行紀錄、變數等不會搬過去），須人工規劃；以 `--decrypted` 匯出的明文檔要放在 n8n 資料目錄以外、只有 root 能讀的目錄，用完即刪（資料目錄是 775、workflow 讀得到、08 備份也會打包）。詳細指令見各 `[MISSING]` 訊息。
-- 部署失敗時 ERR trap 改印「目錄/檔名 line N」。
-- 健康檢查：`curl` 加 5 秒逾時；Ollama／OpenWebUI／n8n／Qdrant／Docling 的埠改讀 `.env`；Lemonade 改打 `/live`，且不再檢查由 tiger-mode 互斥待命的 rag／embed。
-- TPS benchmark：Ollama 位址改由 `.env` 的 `OLLAMA_PORT` 解析後經 `OLLAMA_HOST` 傳入（舊版永遠讀不到改過的埠）；沿用的 `OLLAMA_HOST` 會補上 `http://`，`0.0.0.0` 改打 `localhost`；查詢模型清單加 5 秒逾時。
-- `10-observability-grafana`：`prometheus.yml`／`alloy-config.alloy` 內容變更後，`deploy.sh all` 會重啟對應容器（原本沿用舊設定且不報錯）。
-- `prometheus.yml`：移除空的 `docker-containers` job；nvidia／arm64 補上 `loki` job。
-- n8n 預設 image 改用 `stable` tag（目前與 `latest` 指向同一版本）。既有 `.env` 的 `N8N_IMAGE` 不會自動改變。
-- `08-backup-recovery`：`restore-tigerai.sh` 的每個還原 `psql` 都加上 `-v ON_ERROR_STOP=1`，遇到第一個 SQL 錯誤就中止並印出中止報告，不再把截斷或損壞的 dump 回報成還原成功；globals 先把 `pg_dumpall` 重複輸出的 `CREATE ROLE x;` 改寫成冪等的 `DO … EXCEPTION WHEN duplicate_object`，其餘錯誤照樣中止。**行為變更**：沒有 `globals.sql.gz` 的舊備份，若 dump 引用了目標上不存在的 role（`OWNER TO`／`GRANT`），還原會在該資料庫被 drop、重建之後中止，後面的資料庫不會還原（原本只印出失敗的 `GRANT` 並繼續）。
-- `05-rag-stack`：Qdrant 開啟 API key（`QDRANT_API_KEY` 管理金鑰、`QDRANT_READ_ONLY_API_KEY` 唯讀金鑰），`05/pre-deploy.sh` 檢查兩把都不是佔位值，兩把同值只警告；`03` 的 OpenWebUI 改帶管理金鑰，`03/deploy.sh` 另有縱深守衛。**行為變更**：還沒填兩把 key 的機器，`master-deploy.sh all` 會整台擋下。兩把各用 `openssl rand -hex 32` 產生，必須相異。既有機器請**先部署 `03`、再部署 `05`**（反過來 OpenWebUI 的 RAG 會安靜地 401）；`05` 重建後，n8n UI 裡的 Qdrant credential 要手動補上 key，否則用到 Qdrant 的 workflow 會 401，外部腳本要帶 `api-key` header。key 用上之後不要再換：OpenWebUI 與 n8n credential 裡的值會對不上，而且毫無症狀。
-- `04-automation-n8n`：新增 n8n AI Assistant（sandbox 加 SearXNG），主開關 `N8N_AI_ASSISTANT_ENABLED` 預設關閉、既有機器不會多出容器；開啟時 `SANDBOX_API_KEYS`／`SANDBOX_REGISTRATION_TOKEN`／`SANDBOX_RUNNER_API_KEY`／`SEARXNG_SECRET` 由 `04/pre-deploy.sh` 檢查，`.env` 或 shell 環境設了 `COMPOSE_PROFILES` 都會被擋（請改用主開關）。功能在 n8n 官方標示為 Preview。runner 是 privileged DinD，等同 host root，而 sandbox 執行的是 LLM 生成的程式碼；n8n 官方說內建的 `n8n-sandbox` 最適合本機開發與測試，正式環境建議用 Daytona。runner 目前掛在共用的 `ai_stack_net`、尚未隔離，開啟前請先實測 sandbox 內能不能連到同網路的其他服務（redis／ollama／docling）與 host。`04` 的 `down`、`restart` 改用 `--profile '*'`，才收得掉 profile 內的容器；主開關改回 `false` 再部署（`all`／`main`／`worker`／`restart`）會停止並移除 sandbox 與 SearXNG 容器，無法辨識的值（例如打錯字）會警告並當成關閉。volume 會保留，可能含有先前 sandbox 的資料；要完全清除須手動 `docker volume rm 04-automation-n8n_sandbox-api-data 04-automation-n8n_sandbox-runner-1-docker`（名稱前綴是 compose project name，預設為模組目錄名 `04-automation-n8n`）。mTLS 憑證放在 `SANDBOX_TLS_DIR`，含 CA 私鑰，預設路徑下位於 `BASE_DIR` 底下，會被 `08` 的備份打包，備份檔的保管等級須等同私鑰。
+- 新增部署前秘密檢查：`02`／`03`／`04`／`05`／`10` 各一支唯讀 `pre-deploy.sh`，空值、全空白與 `CHANGE_ME` 一律視為未設定。
+- `master-deploy.sh all`／`app`／`restart` 先檢查全部模組，有缺項就一個都不部署並一次列出；新增 `master-deploy.sh pre-deploy`。`down` 不受影響。
+- `05-rag-stack`：Qdrant 開啟 API key（`QDRANT_API_KEY`／`QDRANT_READ_ONLY_API_KEY`），`03` 的 OpenWebUI 改帶管理金鑰。須先部署 `03` 再部署 `05`。
+- `08-backup-recovery`：還原的每個 `psql` 加上 `ON_ERROR_STOP`，損壞的 dump 不再回報成功；globals 的重複 `CREATE ROLE` 改為冪等。
+- `04-automation-n8n`：新增 n8n AI Assistant（sandbox 加 SearXNG），主開關 `N8N_AI_ASSISTANT_ENABLED` 預設關閉。
+- `04-automation-n8n`：移除 n8n 不讀的 `N8N_BLOCK_FS_WRITE_ACCESS`、`N8N_CORS_ALLOW_ORIGIN`；worker 加上預設註解的 Code node 自裝套件設定（`NODE_PATH`／`NODE_FUNCTION_ALLOW_EXTERNAL`）。
+- `04-automation-n8n`：預設 image 改用 `stable` tag；`DB_POSTGRESDB_PASSWORD` 在 example 中改為註解，預設沿用 `PG_PASS`。
+- Lemonade（amd）：釘 `v11.9.0` 並以 root 執行，修正全新部署 CrashLoop；`GGML_VULKAN_DEVICE_*` 更名為 `GGML_VK_VISIBLE_DEVICES_*`（無相容 fallback）。
+- 健康檢查加逾時、埠改讀 `.env`；TPS benchmark 正確讀取改過的 Ollama 埠；`10` 的 Prometheus／Alloy 設定變更後會重啟容器。
+- **破壞性變更**：仍有 `CHANGE_ME` 或缺 Qdrant 金鑰的機器會被擋下部署；`PG_PASS` 與 n8n 金鑰不可只改 `.env`。升級步驟見 Release Note 的「升級注意」。
+- [Full Release Note](v4.0.0/RELEASE-NOTE.md)
 
 ## [v3.2.0] - 2026-08-24
 
@@ -95,6 +91,7 @@
 - 更新部署、錯誤復原與完整清除指引。
 - [Full Release Note](v1.0.0/RELEASE-NOTE.md)
 
+[v4.0.0]: https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/compare/v3.2.0...v4.0.0
 [v3.2.0]: https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/compare/v3.1.0...v3.2.0
 [v3.1.0]: https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/compare/v3.0.0...v3.1.0
 [v3.0.0]: https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/compare/v2.0.0...v3.0.0
