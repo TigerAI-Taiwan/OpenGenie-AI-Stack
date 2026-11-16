@@ -11,7 +11,7 @@
 # hard-coded depth.
 # =====================================================================
 
-# Load bearing: the systemd unit sets no Environment=, so this is the only
+# Load bearing: the systemd unit sets no TIGER_PLATFORM, so this is the only
 # place the platform gets set for the service. Do not remove.
 export TIGER_PLATFORM=amd
 
@@ -23,24 +23,7 @@ export TIGER_MONITOR_ENTRY
 # shellcheck source=../_shared/tiger-monitor-common.sh
 source "${TIGER_MODULE_DIR}/resource/_shared/tiger-monitor-common.sh"
 
-# amd-only: Lemonade AI core (06-ai-core-lemonade). EDU is always up under
-# either tiger-mode.
-#
-# WARNING: probe with /live, not /health. /health is behind the API key —
-# it answers 401 when LEMONADE_API_KEY is set, and probe() uses `curl -f`, so
-# a perfectly healthy engine would be reported as FAIL on any machine that set
-# one. /live is the unauthenticated liveness endpoint, and it is what this
-# module's own compose healthchecks already use
-# (06-ai-core-lemonade/docker-compose.base.yaml: `curl -sf .../live`).
-SERVICES+=(
-    "Lemonade_EDU:http://$TARGET_HOST:8800/live"
-)
-# rag (8801) and embed (8802) are mutually exclusive — `deploy.sh rag` stops
-# embed and vice versa — so exactly one of them answers at any time. Listing
-# them individually would report a permanent FAIL for whichever mode is not
-# active; as a group, the check is "at least one is up".
-SERVICES_ANY_OF=(
-    "Lemonade_RAG_or_EMBED:http://$TARGET_HOST:8801/live|http://$TARGET_HOST:8802/live"
-)
+# No amd-only entries: the Lemonade endpoints are added by the shared body when
+# TIGER_MONITOR_BACKEND=lemonade (03-ai-core/lemonade).
 
 tiger_monitor_main "${1:-}"

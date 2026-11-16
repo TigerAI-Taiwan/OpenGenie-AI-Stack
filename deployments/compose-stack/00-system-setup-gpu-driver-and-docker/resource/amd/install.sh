@@ -322,7 +322,7 @@ install_docker_amd() {
 
 # ===================== [3/5] 系統參數（sysctl） =====================
 # 🔴 這兩個 key 寫 /etc/sysctl.conf、**不是**烤進 rocm-gpu-performance.sh 的 sysctl -w，
-#    理由是時序：那支 unit 保證在 Docker 之後才跑，restart:always 的 Qdrant / Ollama
+#    理由是時序：那支 unit 保證在 Docker 之後才跑，restart:always 的 Qdrant
 #    啟動的當下 vm.max_map_count 還是開機預設值 —— 每次開機必然如此，不是失敗耦合。
 #    完整的 unit 依賴推導、以及「/etc/sysctl.conf 憑什麼開機會被讀」（99-sysctl.conf
 #    symlink 由 systemd 提供、99- 蓋過 procps 的 10-map-count.conf）見 README 的

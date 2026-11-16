@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # =====================================================================
-# TigerAI Database Deployer (Postgres / pgAdmin)
+# TigerAI Database Deployer (Postgres / pgAdmin / Redis)
 # Path: deployments/compose-stack/02-database-postgres-pgadmin/deploy.sh
 #
-# 三平台共用：compose 定義完全沒有平台差異，所以本模組只有
-# docker-compose.base.yaml，沒有任何 docker-compose.<platform>.yaml overlay。
+# 三平台共用：compose 定義只有一處平台差異 —— nvidia 的 redis 帶
+# platform: linux/amd64（docker-compose.nvidia.yaml）；amd / arm64 沒有 overlay。
 #
 # wait_for_db / db_diagnostics 刻意留在模組裡而不是搬進 lib/common.sh：
 # 那是 Postgres 專屬的診斷邏輯，只有這個模組會用到。
@@ -19,7 +19,7 @@ TIGER_LOG_PREFIX="TigerAI Database"
 source "${SCRIPT_DIR}/../lib/common.sh"
 
 usage() {
-    echo "Usage: sudo $0 {all | postgres | pgadmin | down | restart}"
+    echo "Usage: sudo $0 {all | postgres | pgadmin | redis | down | restart}"
     exit 1
 }
 
@@ -83,12 +83,12 @@ ensure_network
 
 case "$ACTION" in
     all)
-        LOG " Starting Database Stack (Postgres, pgAdmin)..."
+        LOG " Starting Database Stack (Postgres, pgAdmin, Redis)..."
         tiger_compose up -d
         wait_for_db
         LOG "✅ Database bootstrap completed."
         ;;
-    postgres|pgadmin)
+    postgres|pgadmin|redis)
         LOG " Starting specific service: $ACTION..."
         tiger_compose up -d "$ACTION"
         [ "$ACTION" = "postgres" ] && wait_for_db

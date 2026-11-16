@@ -1,22 +1,22 @@
 #!/usr/bin/env bash
 # =====================================================================
-# TigerAI Phase 03 — AI Interface pre-deploy (read-only)
-# Path: deployments/compose-stack/03-ai-interface-ollama-openwebui-redis/pre-deploy.sh
+# TigerAI Phase 04 — AI Interface pre-deploy (read-only)
+# Path: deployments/compose-stack/04-ai-interface-openwebui/pre-deploy.sh
 #
 # Checks that OWUI_SECRET_KEY and PG_PASS hold real values.
 # Read-only: writes nothing and never calls docker.
 # Exit codes: 0 all set / 1 something is missing
-# Output: one `[MISSING] 03-ai-interface/<name> — <reason>` per missing item,
-#         followed by indented commands; the last line is `PRE-DEPLOY 03-ai-interface: N missing`.
+# Output: one `[MISSING] 04-ai-interface/<name> — <reason>` per missing item,
+#         followed by indented commands; the last line is `PRE-DEPLOY 04-ai-interface: N missing`.
 # =====================================================================
 
 # shellcheck disable=SC2016  # the $(...) in the printed fix commands must stay literal
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 # shellcheck disable=SC2034  # read by lib/common.sh's LOG/WARN/ERROR
-TIGER_LOG_PREFIX="Phase-03"
+TIGER_LOG_PREFIX="Phase-04"
 # shellcheck source=../lib/common.sh
 source "${SCRIPT_DIR}/../lib/common.sh"
-MOD="03-ai-interface"
+MOD="04-ai-interface"
 ENV_FILE="${TIGER_STACK_DIR}/.env"
 
 # An empty value makes compose fall back to the literal CHANGE_ME, so empty is

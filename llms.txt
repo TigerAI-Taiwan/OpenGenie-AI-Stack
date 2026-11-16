@@ -43,11 +43,12 @@ docker-compose.base.yaml plus a per-platform overlay.
 - [Phase 00 — HWI hardware advisor (auto tuning)](https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/tree/main/deployments/compose-stack/00-pre-flight-advisor)
 - [Phase 00 — System setup: GPU driver + Docker](https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/tree/main/deployments/compose-stack/00-system-setup-gpu-driver-and-docker)
 - [Phase 01 — Infrastructure: Portainer + WebSSH](https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/tree/main/deployments/compose-stack/01-infra-webssh-portainer)
-- [Phase 02 — Database: PostgreSQL 17 + pgAdmin 4](https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/tree/main/deployments/compose-stack/02-database-postgres-pgadmin)
-- [Phase 03 — AI interface: Ollama + OpenWebUI + Redis](https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/tree/main/deployments/compose-stack/03-ai-interface-ollama-openwebui-redis)
-- [Phase 04 — Automation: n8n Queue Mode + Workers](https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/tree/main/deployments/compose-stack/04-automation-n8n)
-- [Phase 05 — RAG stack: Docling + Qdrant + Mosquitto MQTT](https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/tree/main/deployments/compose-stack/05-rag-stack-docling-qdrant-mosquitto)
-- [Phase 06 — AI core: Lemonade inference engine (amd only)](https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/tree/main/deployments/compose-stack/06-ai-core-lemonade)
+- [Phase 02 — Database: PostgreSQL 17 + pgAdmin 4 + Redis](https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/tree/main/deployments/compose-stack/02-database-postgres-pgadmin)
+- [Phase 03 — AI core: Ollama inference backend (nvidia / arm64, INFERENCE_BACKEND=ollama)](https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/tree/main/deployments/compose-stack/03-ai-core/ollama)
+- [Phase 03 — AI core: Lemonade inference engine (amd only, INFERENCE_BACKEND=lemonade)](https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/tree/main/deployments/compose-stack/03-ai-core/lemonade)
+- [Phase 04 — AI interface: OpenWebUI](https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/tree/main/deployments/compose-stack/04-ai-interface-openwebui)
+- [Phase 05 — Automation: n8n Queue Mode + Workers + SearXNG](https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/tree/main/deployments/compose-stack/05-automation-n8n)
+- [Phase 06 — RAG stack: Docling + Qdrant + Mosquitto MQTT](https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/tree/main/deployments/compose-stack/06-rag-stack-docling-qdrant-mosquitto)
 - [Phase 07 — Validation: health checks + benchmarks](https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/tree/main/deployments/compose-stack/07-validation-stack)
 - [Phase 08 — Backup & recovery: one-click snapshot + restore](https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/tree/main/deployments/compose-stack/08-backup-recovery)
 - [Phase 09 — Monitoring & alerting: tiger-monitor + MQTT alerts](https://github.com/TigerAI-Taiwan/OpenGenie-AI-Stack/tree/main/deployments/compose-stack/09-monitoring-alerting)
@@ -61,7 +62,7 @@ docker-compose.base.yaml plus a per-platform overlay.
 - Portainer (container manager): http://localhost:9000
 - pgAdmin (database UI): http://localhost:8000
 - Qdrant (vector database): http://localhost:6333
-- Ollama (LLM API): http://localhost:11434
+- Ollama (LLM API, nvidia / arm64): http://localhost:11434
 - Lemonade Edu / RAG / Embed: 8800 / 8801 / 8802
 - cAdvisor: http://localhost:8088
 - Loki: http://localhost:3100

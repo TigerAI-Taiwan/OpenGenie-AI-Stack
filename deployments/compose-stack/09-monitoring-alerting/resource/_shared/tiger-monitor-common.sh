@@ -5,8 +5,9 @@
 #
 # Sourced by resource/<platform>/tiger-monitor.sh. Defines
 # tiger_monitor_main() and does NOT call it — the entry point does, after
-# appending its own SERVICES entries. Today that means the amd entry adds the
-# Lemonade endpoints, because only amd deploys 06-ai-core-lemonade.
+# appending its own SERVICES entries. No platform adds any today: the
+# inference-backend endpoints are chosen here from TIGER_MONITOR_BACKEND, which
+# deploy.sh resolves from INFERENCE_BACKEND and writes into the systemd unit.
 #
 # The -common.sh suffix is deliberate: tiger_res resolves
 # resource/<platform>/ before resource/_shared/, so a platform entry point
@@ -67,7 +68,7 @@ set +a
 
 MQTT_BROKER=${MQTT_BROKER:-"localhost"}
 # The broker requires authentication. These must match what the mosquitto
-# service in 05-rag-stack feeds to mosquitto_passwd — same variables, same
+# service in 06-rag-stack feeds to mosquitto_passwd — same variables, same
 # defaults. Without them every publish below is rejected, and mosquitto_pub
 # reports that on stderr while this script carries on regardless.
 MQTT_USERNAME=${MQTT_USERNAME:-tigerai}
@@ -149,7 +150,6 @@ probe() {
 SERVICES=(
     "Portainer:http://$TARGET_HOST:${PORTAINER_PORT:-9000}/api/system/status"
     "pgAdmin:http://$TARGET_HOST:${PGADMIN_PORT:-8000}/misc/ping"
-    "Ollama:http://$TARGET_HOST:${OLLAMA_PORT:-11434}/"
     "OpenWebUI:http://$TARGET_HOST:${OWUI_PORT:-8080}/health"
     "n8n:http://$TARGET_HOST:${N8N_PORT:-5678}/healthz/readiness"
     "Qdrant:http://$TARGET_HOST:${QDRANT_PORT:-6333}/healthz"
@@ -162,12 +162,28 @@ SERVICES=(
 )
 
 # Mutually-exclusive service groups ("Name:url1|url2"): PASS when ANY member
-# answers. Empty by default; the amd entry point fills in Lemonade RAG/EMBED,
-# which take turns under tiger-mode so exactly one of them is ever up.
+# answers. Lemonade RAG/EMBED take turns under tiger-mode, so exactly one of
+# them is ever up.
 SERVICES_ANY_OF=()
 
-# Lemonade is amd-only (06-ai-core-lemonade), so resource/amd/tiger-monitor.sh
-# appends its entries to both arrays before calling the dispatcher below.
+# Backend is decided by deploy.sh and written into the unit's Environment=; the daemon never re-resolves.
+# Lemonade is probed on /live, not /health: /health is behind the API key and answers 401 when
+# LEMONADE_API_KEY is set, which `curl -f` in probe() would report as FAIL.
+case "${TIGER_MONITOR_BACKEND:-}" in
+    ollama) SERVICES+=("Ollama:http://$TARGET_HOST:${OLLAMA_PORT:-11434}/") ;;
+    lemonade)
+        SERVICES+=("Lemonade_EDU:http://$TARGET_HOST:8800/live")
+        SERVICES_ANY_OF+=("Lemonade_RAG_or_EMBED:http://$TARGET_HOST:8801/live|http://$TARGET_HOST:8802/live") ;;
+esac
+
+# Like 08: never guess. Old units carry no TIGER_MONITOR_BACKEND; probing a default would false-alarm.
+tiger_monitor_backend_required() {
+    case "${TIGER_MONITOR_BACKEND:-}" in
+        ollama|lemonade) ;;
+        "") ERROR "No inference backend (TIGER_MONITOR_BACKEND is empty; old units do not set it). Re-run sudo -E bash ${TIGER_STACK_DIR}/09-monitoring-alerting/deploy.sh to reinstall the unit." ;;
+        *)  ERROR "TIGER_MONITOR_BACKEND='${TIGER_MONITOR_BACKEND}' is not ollama|lemonade. Re-run sudo -E bash ${TIGER_STACK_DIR}/09-monitoring-alerting/deploy.sh to reinstall the unit." ;;
+    esac
+}
 
 check_and_notify() {
     local DATE=$(date "+%Y-%m-%d %H:%M:%S")
@@ -232,6 +248,8 @@ check_and_notify() {
 tiger_monitor_main() {
 local unit="tiger-monitor.service"
 local unit_path="/etc/systemd/system/$unit"
+# uninstall must still work on a host whose unit carries no backend.
+case "${1:-}" in once|start|install) tiger_monitor_backend_required ;; esac
 case "${1:-}" in
     once)
         check_and_notify
@@ -266,12 +284,16 @@ WorkingDirectory=$(dirname "$entry")
 ExecStart=${entry} start
 Restart=always
 RestartSec=30
+Environment=TIGER_MONITOR_BACKEND=${TIGER_MONITOR_BACKEND}
 
 [Install]
 WantedBy=multi-user.target
 EOF
         sudo systemctl daemon-reload
-        sudo systemctl enable --now "$unit"
+        # enable + restart, not enable --now: --now does not restart a unit that is
+        # already running, so an upgraded unit would keep the old daemon without a backend.
+        sudo systemctl enable "$unit"
+        sudo systemctl restart "$unit"
         LOG "Systemd service installed and started."
         ;;
     uninstall)

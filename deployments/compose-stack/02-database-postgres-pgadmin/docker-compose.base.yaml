@@ -65,6 +65,26 @@ services:
         max-size: "50m"
         max-file: "3"
 
+  # Shared by n8n's queue and OpenWebUI, so it lives in the DB layer, which deploys first.
+  # Cross-project depends_on is impossible: 04-ai-interface-openwebui/deploy.sh waits for it to be healthy.
+  redis:
+    # redis-stack-server is still 7.4 and its modules have no consumer here.
+    image: ${REDIS_IMAGE:-redis:8-alpine}
+    container_name: redis
+    restart: always
+    networks:
+      - ai_stack_net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
+
 networks:
   ai_stack_net:
     external: true

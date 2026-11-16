@@ -1,18 +1,11 @@
 # =====================================================================
-# TigerAI AI Interface (Ollama / OpenWebUI / Redis) — base
-# Path: deployments/compose-stack/03-ai-interface-ollama-openwebui-redis/docker-compose.base.yaml
+# TigerAI AI Interface (OpenWebUI) — base
+# Path: deployments/compose-stack/04-ai-interface-openwebui/docker-compose.base.yaml
 #
-# The parts common to all three platforms. Every platform difference lives in
-# docker-compose.<platform>.yaml:
-#   ollama GPU access   amd:            devices /dev/kfd + /dev/dri (ROCm)
-#                       nvidia / arm64: deploy.resources.reservations
-#   OLLAMA_VULKAN=1     amd only
-#   redis platform      nvidia only (linux/amd64)
-#
-# WARNING: base deliberately carries NO GPU mount. If base declared nvidia's
-# reservation, the amd overlay would need `!reset` to remove it (Compose
-# >= 2.24.4, obscure semantics), and an AMD machine would otherwise be left
-# with a stray `driver: nvidia` reservation.
+# redis lives in 02-database (cross-project depends_on is impossible, so
+# deploy.sh waits for it to be healthy); Ollama moved to 03-ai-core/ollama.
+# Platform differences go in docker-compose.<platform>.yaml (all three are
+# empty today); the model connection is in docker-compose.backend-<backend>.yaml.
 #
 # ---------------------------------------------------------------------
 # TOPOLOGY CHANGE — this module no longer runs worker containers.
@@ -30,62 +23,6 @@
 # this module.
 # =====================================================================
 services:
-  redis:
-    # redis-stack-server is still 7.4 and its modules have no consumer here.
-    image: ${REDIS_IMAGE:-redis:8-alpine}
-    container_name: redis
-    restart: always
-    networks:
-      - ai_stack_net
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-    logging:
-      driver: json-file
-      options:
-        max-size: "50m"
-        max-file: "3"
-
-  ollama:
-    image: ${OLLAMA_IMAGE:-ollama/ollama:latest}
-    container_name: ollama
-    restart: always
-    ports:
-      - "${OLLAMA_PORT:-11434}:11434"
-    networks:
-      - ai_stack_net
-    # GPU access is intentionally absent here — see the warning in the header.
-    volumes:
-      - /var/lib/ollama:/root/.ollama
-    environment:
-      - OLLAMA_FLASH_ATTENTION=${OLLAMA_FLASH_ATTENTION:-1}
-      - OLLAMA_NUM_PARALLEL=${OLLAMA_NUM_PARALLEL:-2}
-      - OLLAMA_MAX_LOADED_MODELS=${OLLAMA_MAX_LOADED_MODELS:-2}
-      # Unset, ollama picks a tier from detected VRAM (256k on a 128GB box).
-      - OLLAMA_CONTEXT_LENGTH=${OLLAMA_CONTEXT_LENGTH:-32768}
-      # -1 = keep models resident in VRAM indefinitely (never unload).
-      # amd hard-coded -1 while nvidia/arm64 defaulted to 24h; -1 is the
-      # default here and remains overridable per machine.
-      - OLLAMA_KEEP_ALIVE=${OLLAMA_KEEP_ALIVE:--1}
-      - OLLAMA_MAX_QUEUE=${OLLAMA_MAX_QUEUE:-512}
-      - OLLAMA_HOST=${OLLAMA_HOST:-0.0.0.0:11434}
-      - OLLAMA_ORIGINS=${OLLAMA_ORIGINS:-*}
-    # The ollama runtime image has no curl or wget; use the bundled CLI, which
-    # calls GET /api/tags. start_period covers server startup.
-    healthcheck:
-      test: ["CMD", "ollama", "list"]
-      interval: 10s
-      timeout: 5s
-      retries: 6
-      start_period: 30s
-    logging:
-      driver: json-file
-      options:
-        max-size: "50m"
-        max-file: "3"
-
   # WARNING: pinning or bumping OWUI_IMAGE? Re-verify the migration gate.
   #    openwebui-migrate (below) runs Alembic to completion before this service
   #    starts, and this service then runs with ENABLE_DB_MIGRATIONS=false.
@@ -120,7 +57,8 @@ services:
     environment:
       - REDIS_URL=redis://redis:6379/1
       - DATABASE_URL=postgresql://${PG_USER:-adm}:${PG_PASS:-CHANGE_ME}@${PG_HOST:-postgres}:5432/${OWUI_DB_NAME:-openwebui}
-      - OLLAMA_API_BASE_URL=http://ollama:11434
+      # The model connection comes from docker-compose.backend-<backend>.yaml, layered by deploy.sh per INFERENCE_BACKEND.
+      # Do not set it here: an overlay cannot delete a base key, so the base must not set it.
       - WEBUI_SECRET_KEY=${OWUI_SECRET_KEY:-CHANGE_ME}
       - AIOHTTP_CLIENT_TIMEOUT=${AIOHTTP_TIMEOUT:-900}
       # --- multiple uvicorn workers inside this one container ----------------
@@ -156,14 +94,14 @@ services:
       - DATABASE_USER_ACTIVE_STATUS_UPDATE_INTERVAL=${OWUI_USER_ACTIVE_INTERVAL:-300}
       # chroma (the upstream default) is a local SQLite file and is not safe
       # across processes — with UVICORN_WORKERS>1 uploads die with "Child
-      # process died". qdrant lives in 05-rag-stack.
+      # process died". qdrant lives in 06-rag-stack.
       #
-      # WARNING: 03 deploys BEFORE 05, so qdrant does not exist yet when this
+      # WARNING: 04 deploys BEFORE 06, so qdrant does not exist yet when this
       #    container first starts. That is fine and is not a startup ordering
       #    bug: the qdrant client is constructed lazily, its version check runs
       #    in a daemon thread that swallows every exception, and main.py's
       #    lifespan never touches the client. OpenWebUI starts, /health returns
-      #    200, chat works, and only RAG queries fail until 05 comes up — no
+      #    200, chat works, and only RAG queries fail until 06 comes up — no
       #    restart needed. A cross-module depends_on is impossible here anyway:
       #    qdrant is defined in another compose file.
       - VECTOR_DB=${OWUI_VECTOR_DB:-qdrant}
@@ -184,10 +122,6 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
-      redis:
-        condition: service_healthy
-      ollama:
-        condition: service_started
       openwebui-migrate:
         condition: service_completed_successfully
     healthcheck:

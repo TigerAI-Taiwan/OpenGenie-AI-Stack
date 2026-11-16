@@ -1,0 +1,16 @@
+# =====================================================================
+# TigerAI AI Interface — INFERENCE_BACKEND=lemonade (amd)
+# Path: deployments/compose-stack/04-ai-interface-openwebui/docker-compose.backend-lemonade.yaml
+#
+# Layered by deploy.sh from the effective value; never by hand with docker compose -f.
+# PersistentConfig: these only take effect when OpenWebUI's DB has no value yet; existing hosts change the connection
+# in Admin > Settings > Connections.
+# =====================================================================
+services:
+  openwebui-main:
+    environment:
+      - ENABLE_OLLAMA_API=false
+      - ENABLE_OPENAI_API=true
+      - OPENAI_API_BASE_URL=http://lemonade-edu:8800/api/v1
+      # Lemonade's key may be empty (= auth off).
+      - OPENAI_API_KEY=${LEMONADE_API_KEY:-}

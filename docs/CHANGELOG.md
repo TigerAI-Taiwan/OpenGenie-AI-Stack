@@ -1,5 +1,18 @@
 # Changelog
 
+## [v5.0.0] - 2026-11-16
+
+- 模組重新編號：推論後端成為 Phase 03（`03-ai-core/ollama`、`03-ai-core/lemonade`），OpenWebUI 改為 `04-ai-interface-openwebui`，n8n 改為 `05-automation-n8n`，RAG 改為 `06-rag-stack-docling-qdrant-mosquitto`。
+- 新增必填的 `INFERENCE_BACKEND`：nvidia／arm64 只接受 `ollama`，amd 只接受 `lemonade`，空值或其他值一律擋下；新增 `03-ai-core/pre-deploy.sh`。
+- 部署 03 時先拉 image、再卸載本 stack 留下的另一個後端容器（模型與 volume 不刪）；非本 stack 建立的同名容器整批不動。
+- 新增 `migrations/renumber-migrate.sh`：一次性、可重跑，預設只列出，`--apply` 停舊 project、複製 named volume、搬模組層 `.env` 與 RAG cron；有 CONFLICT 就一項都不做。
+- Redis 搬到 `02-database-postgres-pgadmin`；`04` 部署前等 redis healthy。
+- OpenWebUI 的模型連線依後端疊 `docker-compose.backend-<後端>.yaml`；**AMD 不再部署 Ollama**，改連 Lemonade EDU。
+- n8n：SearXNG 一律部署並新增 `searxng` 動作；`N8N_AI_ASSISTANT_ENABLED` 預設改為 `true`；`SEARXNG_SECRET` 每台必填。
+- `07` 健康檢查／benchmark、`08` VRAM purge cron、`09` tiger-monitor 都改為跟著 `INFERENCE_BACKEND`；08 的 cron 與 09 的 unit 要重新安裝。
+- **破壞性變更**：既有機器要先在 `.env` 加 `INFERENCE_BACKEND`、跑 `renumber-migrate.sh`，AMD 要手動把 OpenWebUI 連線改到 Lemonade。升級步驟見 Release Note 的「升級注意」。
+- [Full Release Note](v5.0.0/RELEASE-NOTE.md)
+
 ## [v4.0.0] - 2026-10-23
 
 - 新增部署前秘密檢查：`02`／`03`／`04`／`05`／`10` 各一支唯讀 `pre-deploy.sh`，空值、全空白與 `CHANGE_ME` 一律視為未設定。

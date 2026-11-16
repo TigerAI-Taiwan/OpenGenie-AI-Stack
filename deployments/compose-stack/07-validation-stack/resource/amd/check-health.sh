@@ -8,7 +8,7 @@
 # back here:
 #   1. source the shared body
 #   2. run it, then add this platform's own checks — amd is the only platform
-#      that deploys 06-ai-core-lemonade
+#      that deploys 03-ai-core/lemonade (only when INFERENCE_BACKEND=lemonade)
 #   3. print the closing line, which must be last
 #
 # WARNING: must stay at the FIRST level of resource/amd/. The `../..` is a
@@ -22,14 +22,17 @@ source "${TIGER_MODULE_DIR}/resource/_shared/check-health-common.sh"
 
 tiger_check_health_main
 
-# Phase 5: Lemonade Core — amd only.
-LOG "--- [Phase 5: Lemonade Core] ---"
-# /live is lemond's liveness endpoint, the same one the container healthcheck
-# uses. Lemonade answers 401 when an API key is set but not supplied. That still
-# means the service is up, hence the 200|401 alternation.
-check_endpoint "Lemonade EDU (8800)" "http://$TARGET_HOST:8800/live" "200|401" \
-    || WARN "Lemonade EDU (always-on) might be stopped"
-# lemonade-rag and lemonade-embed are not checked: tiger-mode runs exactly one of
-# them, so the idle one not answering is normal and a check would only be noise.
+# Phase 5: Lemonade Core — amd only, and only when it is the inference backend
+# (CHECK_BACKEND comes from the shared body).
+if [ "$CHECK_BACKEND" = "lemonade" ]; then
+    LOG "--- [Phase 5: Lemonade Core] ---"
+    # /live is lemond's liveness endpoint, the same one the container healthcheck
+    # uses. Lemonade answers 401 when an API key is set but not supplied. That still
+    # means the service is up, hence the 200|401 alternation.
+    check_endpoint "Lemonade EDU (8800)" "http://$TARGET_HOST:8800/live" "200|401" \
+        || WARN "Lemonade EDU (always-on) might be stopped"
+    # lemonade-rag and lemonade-embed are not checked: tiger-mode runs exactly one of
+    # them, so the idle one not answering is normal and a check would only be noise.
+fi
 
 LOG "Validation Check Finished."

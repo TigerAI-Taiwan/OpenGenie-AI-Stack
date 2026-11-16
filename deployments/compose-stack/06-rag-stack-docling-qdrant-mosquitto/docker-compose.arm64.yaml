@@ -1,6 +1,6 @@
 # =====================================================================
 # TigerAI RAG Stack — arm64 overlay
-# Path: deployments/compose-stack/05-rag-stack-docling-qdrant-mosquitto/docker-compose.arm64.yaml
+# Path: deployments/compose-stack/06-rag-stack-docling-qdrant-mosquitto/docker-compose.arm64.yaml
 #
 # Differences from base:
 #   1. GPU access for docling and qdrant: deploy.resources.reservations

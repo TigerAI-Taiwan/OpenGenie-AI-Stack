@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
 # =====================================================================
 # TigerAI Lemonade AI Core Deployer
-# Path: deployments/compose-stack/06-ai-core-lemonade/deploy.sh
+# Path: deployments/compose-stack/03-ai-core/lemonade/deploy.sh
 #
-# amd ONLY. Lemonade is a Vulkan/ROCm inference engine and is deployed on the
-# AMD platform alone. On nvidia and arm64 the LLM inference path is Ollama in
-# 03-ai-interface, and this module exits cleanly without doing anything.
+# AMD only; deploys only when INFERENCE_BACKEND=lemonade, any other value is skipped (exit 0).
+# Skipping must exit 0: master-deploy.sh calls this under set -e, and non-zero would abort the whole `all`.
 #
 # Before the stack merge the nvidia and arm64 stacks each shipped their own
 # copy of this module, which installed native systemd units (lemonade-edu /
@@ -21,13 +20,8 @@
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 TIGER_LOG_PREFIX="TigerAI Lemonade"
-# shellcheck source=../lib/common.sh
-source "${SCRIPT_DIR}/../lib/common.sh"
-
-if [ "$TIGER_PLATFORM" != "amd" ]; then
-    LOG "Lemonade is an amd-only module; skipping on ${TIGER_PLATFORM}."
-    exit 0
-fi
+# shellcheck source=../../lib/common.sh
+source "${SCRIPT_DIR}/../../lib/common.sh"
 
 usage() {
     echo "Usage: sudo $0 {all | edu | rag | status | logs | down | restart | purge}"
@@ -36,6 +30,24 @@ usage() {
 
 [ $# -eq 0 ] && usage
 ACTION="$1"
+
+# Stop/inspect actions ignore INFERENCE_BACKEND so they still work on a misconfigured host.
+case "$ACTION" in
+    down|status|logs|purge) _stop_action=1 ;;
+    *)                      _stop_action="" ;;
+esac
+# Non-AMD selecting lemonade is rejected by resolve's validation.
+if [ -z "$_stop_action" ]; then
+    tiger_inference_backend_resolve
+    if [ "$TIGER_INFERENCE_BACKEND" != "lemonade" ]; then
+        SKIP "INFERENCE_BACKEND=${TIGER_INFERENCE_BACKEND}, skipping 03-ai-core/lemonade"
+        exit 0
+    fi
+fi
+if [ "$TIGER_PLATFORM" != "amd" ]; then
+    WARN "03-ai-core/lemonade is AMD-only; TIGER_PLATFORM='${TIGER_PLATFORM}' does not apply, skipping"
+    exit 0
+fi
 
 # Fallback defaults
 MODELS_DIR=${MODELS_DIR:-/home/wrt/TigerAI/models}
@@ -65,7 +77,9 @@ ensure_network
 case "$ACTION" in
     all)
         LOG "Starting the Lemonade stack (EDU + EMBED)..."
+        # Pull first, then remove other backends: a failed pull leaves the old backend serving.
         tiger_compose pull
+        tiger_inference_backend_cutover
         tiger_compose up -d
         ;;
     edu)
@@ -92,7 +106,9 @@ case "$ACTION" in
         ;;
     restart)
         LOG "Restarting Lemonade..."
+        tiger_compose pull
         tiger_compose down
+        tiger_inference_backend_cutover
         tiger_compose up -d
         ;;
     purge)

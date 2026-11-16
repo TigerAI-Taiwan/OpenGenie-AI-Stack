@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # =====================================================================
-# TigerAI AI Interface Deployer (Redis, Ollama, OpenWebUI)
-# Path: deployments/compose-stack/03-ai-interface-ollama-openwebui-redis/deploy.sh
+# TigerAI AI Interface Deployer (OpenWebUI)
+# Path: deployments/compose-stack/04-ai-interface-openwebui/deploy.sh
 #
-# All three platforms carry an overlay here — see docker-compose.base.yaml
-# for the GPU access, redis platform and ollama volume differences.
+# The platform overlays are empty placeholders today. The model connection is
+# layered per INFERENCE_BACKEND (docker-compose.backend-<backend>.yaml); redis
+# lives in 02-database.
 #
 # TOPOLOGY CHANGE: there are no more openwebui-worker containers. OpenWebUI is
 # one openwebui-main running `uvicorn --workers N`, gated behind a one-shot
@@ -23,7 +24,7 @@ source "${SCRIPT_DIR}/../lib/common.sh"
 export OWUI_UVICORN_WORKERS="${TIGER_OWUI_UVICORN_WORKERS:-${OWUI_UVICORN_WORKERS:-2}}"
 
 usage() {
-    echo "Usage: sudo $0 {all | redis | ollama | openwebui | down | restart}"
+    echo "Usage: sudo $0 {all | openwebui | down | restart}"
     exit 1
 }
 
@@ -58,10 +59,10 @@ ensure_db() {
 # container is Running, /health returns 200, chat works, only RAG is dead.
 # It must be the ADMIN key, not the read-only one: OpenWebUI does
 # create_collection / upsert / delete_collection.
-# 05-rag-stack's pre-deploy.sh is the primary check; this is defence in depth for
-# running 03 on its own. Deploy paths only (all / openwebui / restart): redis,
-# ollama and down do not touch OpenWebUI, and blocking them would only leave a
-# host that cannot be stopped.
+# 06-rag-stack's pre-deploy.sh is the primary check; this is defence in depth for
+# running 04 on its own. Deploy paths only (all / openwebui / restart): down does
+# not touch OpenWebUI, and blocking it would only leave a host that cannot be
+# stopped.
 check_qdrant_api_key() {
     if is_placeholder "${QDRANT_API_KEY:-}"; then
         ERROR "$(printf '%s\n' \
@@ -69,12 +70,25 @@ check_qdrant_api_key() {
             "Without the key Qdrant rejects OpenWebUI with 401, yet the container stays Running," \
             "/health returns 200 and chat works — only RAG silently dies." \
             "" \
-            "Set it in ${TIGER_STACK_DIR}/.env to the same admin key 05-rag-stack uses" \
+            "Set it in ${TIGER_STACK_DIR}/.env to the same admin key 06-rag-stack uses" \
             "(QDRANT__SERVICE__API_KEY), not the read-only key — the read-only key gets 403 on writes." \
             "" \
-            "Also: 05-rag-stack needs QDRANT_READ_ONLY_API_KEY as well (03 does not use it)." \
-            "Set it now too, so the 05 deploy is not blocked a second time.")"
+            "Also: 06-rag-stack needs QDRANT_READ_ONLY_API_KEY as well (04 does not use it)." \
+            "Set it now too, so the 06 deploy is not blocked a second time.")"
     fi
+}
+
+# redis lives in 02-database: cross-project depends_on is impossible, so wait for it here.
+wait_for_redis() {
+    local waited=0 status
+    docker ps -a --format '{{.Names}}' | grep -qx redis \
+        || ERROR "No redis container - deploy 02-database first: sudo -E bash ${TIGER_STACK_DIR}/02-database-postgres-pgadmin/deploy.sh all"
+    until status=$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{end}}' redis 2>/dev/null) && [ "$status" = "healthy" ]; do
+        [ "$waited" -ge 60 ] && ERROR "redis not healthy within 60s (now: ${status:-unknown}) - docker logs redis --tail 50"
+        sleep 2
+        waited=$((waited + 2))
+    done
+    LOG "✅ redis is healthy."
 }
 
 ACTION="$1"
@@ -88,25 +102,33 @@ case "$ACTION" in
         check_qdrant_api_key
         ;;
 esac
+
+# Stop actions ignore the backend: down only needs the project name.
+_BACKEND_OVERLAY=()
+case "$ACTION" in
+    all|openwebui|restart)
+        tiger_inference_backend_resolve
+        _BACKEND_OVERLAY=(-f "${SCRIPT_DIR}/docker-compose.backend-${TIGER_INFERENCE_BACKEND}.yaml")
+        LOG "INFERENCE_BACKEND=${TIGER_INFERENCE_BACKEND}"
+        ;;
+esac
 ensure_network
 
 case "$ACTION" in
     all)
         ensure_db
-        LOG "Starting the AI stack (Redis, Ollama, OpenWebUI: $OWUI_UVICORN_WORKERS uvicorn workers)..."
-        tiger_compose up -d
-        LOG "✅ AI interface deployed: Redis + Ollama + OpenWebUI ($OWUI_UVICORN_WORKERS uvicorn workers)"
-        ;;
-    redis|ollama)
-        LOG "Starting specific service: $ACTION..."
-        tiger_compose up -d "$ACTION"
+        wait_for_redis
+        LOG "Starting the AI interface (OpenWebUI: $OWUI_UVICORN_WORKERS uvicorn workers)..."
+        tiger_compose "${_BACKEND_OVERLAY[@]}" up -d
+        LOG "✅ AI interface deployed: OpenWebUI ($OWUI_UVICORN_WORKERS uvicorn workers)"
         ;;
     openwebui)
         ensure_db
+        wait_for_redis
         LOG "Starting OpenWebUI ($OWUI_UVICORN_WORKERS uvicorn workers)..."
         # openwebui-migrate is pulled in automatically by openwebui-main's
         # depends_on (service_completed_successfully) — no need to name it.
-        tiger_compose up -d openwebui-main
+        tiger_compose "${_BACKEND_OVERLAY[@]}" up -d openwebui-main
         ;;
     down)
         LOG "Stopping AI interface services..."
@@ -115,11 +137,12 @@ case "$ACTION" in
         tiger_compose down --remove-orphans
         ;;
     restart)
-        LOG "Restarting the AI stack..."
+        LOG "Restarting the AI interface..."
         ensure_db
+        wait_for_redis
         tiger_compose down --remove-orphans
-        tiger_compose up -d
-        LOG "✅ AI interface deployed: Redis + Ollama + OpenWebUI ($OWUI_UVICORN_WORKERS uvicorn workers)"
+        tiger_compose "${_BACKEND_OVERLAY[@]}" up -d
+        LOG "✅ AI interface deployed: OpenWebUI ($OWUI_UVICORN_WORKERS uvicorn workers)"
         ;;
     *)
         usage

@@ -7,6 +7,8 @@
 # platform-specific, so this file (in resource/_shared/) cannot resolve it:
 #   $1               the path deploy.sh resolved via tiger_res (preferred)
 #   $TIGER_PLATFORM  fallback for a direct run
+#   $2               the inference backend (ollama | lemonade), resolved by
+#                    deploy.sh and written into the cron line (required)
 # Neither present is a hard error — guessing installs a cron job that drives
 # the wrong GPU stack.
 #
@@ -44,19 +46,28 @@ fi
 PURGE_SCRIPT="$(cd "$(dirname "$PURGE_SCRIPT")" && pwd -P)/$(basename "$PURGE_SCRIPT")"
 chmod +x "$PURGE_SCRIPT"
 
-# No TIGER_PLATFORM in the cron line: it runs the platform entry point, which
-# exports the value itself (see the note above that export).
-CRON_JOB="0 5 * * * /bin/bash ${PURGE_SCRIPT} >> ${MODULE_DIR}/maintenance.log 2>&1"
+BACKEND="${2:-}"
+case "$BACKEND" in
+    ollama|lemonade) ;;
+    *) ERROR "Inference backend '${BACKEND}' invalid or missing. Use: sudo -E TIGER_PLATFORM={amd|nvidia|arm64} bash <module>/deploy.sh cron" ;;
+esac
 
-if crontab -l 2>/dev/null | grep -q "$PURGE_SCRIPT"; then
+# No TIGER_PLATFORM in the cron line: it runs the platform entry point, which
+# exports the value itself (see the note above that export). The backend is
+# fixed here; the purge never re-resolves it.
+CRON_JOB="0 5 * * * /bin/bash $PURGE_SCRIPT $BACKEND >> $MODULE_DIR/maintenance.log 2>&1"
+
+if crontab -l 2>/dev/null | grep -qxF -- "$CRON_JOB"; then
     LOG "VRAM purge cron job already exists, skipping."
 else
-    LOG "Installing the daily 5:00 AM VRAM purge cron job..."
+    LOG "Installing the daily 5:00 AM VRAM purge cron job (INFERENCE_BACKEND=${BACKEND})..."
     # WARNING: `|| true` is required. On a host with no crontab yet, `crontab -l`
     # exits 1, which under `set -e` ends the subshell before the echo runs —
     # `crontab -` then receives empty input and installs an EMPTY crontab, while
     # pipefail makes this script exit 1. Every fresh machine hits this.
-    (crontab -l 2>/dev/null || true; echo "$CRON_JOB") | crontab -
+    # Any older line for the same script (e.g. one without a backend) is replaced;
+    # grep -v exiting 1 when nothing else is left is not a failure.
+    ({ crontab -l 2>/dev/null || true; } | { grep -vF -- "$PURGE_SCRIPT" || true; }; echo "$CRON_JOB") | crontab -
     LOG "Installed."
 fi
 

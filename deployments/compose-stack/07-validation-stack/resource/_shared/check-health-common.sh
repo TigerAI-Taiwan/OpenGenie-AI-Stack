@@ -7,7 +7,10 @@
 # tiger_check_health_main() and does NOT call it — the entry point does, after
 # adding whatever that platform checks on its own. Today that means the amd
 # entry adds Phase 5 (Lemonade Core), because only amd deploys
-# 06-ai-core-lemonade.
+# 03-ai-core/lemonade.
+#
+# The inference-backend check follows INFERENCE_BACKEND: ollama = Phase 3's
+# Ollama API; lemonade = the amd entry's Phase 5.
 #
 # The -common.sh suffix is deliberate. tiger_res resolves
 # resource/<platform>/ before resource/_shared/, so if a platform entry point
@@ -70,6 +73,8 @@ set +a
 
 PG_USER="${PG_USER:-adm}"
 TARGET_HOST=${TARGET_HOST:-"localhost"}
+# Deploy refuses an empty value, so empty here means the host was never deployed with this stack version.
+CHECK_BACKEND="${INFERENCE_BACKEND:-}"
 
 # --- 1) Logging --------------------------------------------------------------
 # log.sh and not lib/common.sh: common.sh's ERR trap would abandon the run on
@@ -148,7 +153,13 @@ LOG "--- [Phase 3: AI Interfaces] ---"
 # Ports come from env, with the same defaults as each module's
 # docker-compose.base.yaml ${VAR:-N}. Hard-coded, a port moved to avoid a
 # conflict would show up here as a row of false FAILs.
-check_endpoint "Ollama API" "http://$TARGET_HOST:${OLLAMA_PORT:-11434}/api/tags" "200" || true
+case "$CHECK_BACKEND" in
+    ollama|lemonade) ;;
+    *) echo -e "  [${RED}FAIL${NC}] INFERENCE_BACKEND='${CHECK_BACKEND}' in .env is not set or not recognised (ollama on nvidia/arm64, lemonade on amd) - backend not checked" ;;
+esac
+if [ "$CHECK_BACKEND" = "ollama" ]; then
+    check_endpoint "Ollama API" "http://$TARGET_HOST:${OLLAMA_PORT:-11434}/api/tags" "200" || true
+fi
 check_endpoint "OpenWebUI" "http://$TARGET_HOST:${OWUI_PORT:-8080}/health" "200" || true
 
 # 4. Automation & RAG Checks
@@ -160,7 +171,7 @@ check_endpoint "Docling API" "http://$TARGET_HOST:${HTTP_DOCLING_PORT:-5001}/hea
 check_endpoint "cAdvisor" "http://$TARGET_HOST:8088/healthz" "200" || true
 
 # Phase 5 (Lemonade Core) is amd-only and lives in resource/amd/check-health.sh,
-# because only amd deploys 06-ai-core-lemonade.
+# because only amd deploys 03-ai-core/lemonade (when INFERENCE_BACKEND=lemonade).
 #
 # The closing line is printed by the platform entry point, not here, so that
 # platform-specific checks land before it.

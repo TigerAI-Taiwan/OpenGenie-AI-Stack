@@ -1,0 +1,11 @@
+# =====================================================================
+# TigerAI Database — nvidia overlay
+# Path: deployments/compose-stack/02-database-postgres-pgadmin/docker-compose.nvidia.yaml
+#
+# Differences from base:
+#   1. redis platform: linux/amd64 — only the nvidia stack carried this (moved
+#      here with redis from the old AI-interface module's nvidia overlay).
+# =====================================================================
+services:
+  redis:
+    platform: linux/amd64

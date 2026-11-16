@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # =====================================================================
 # TigerAI RAG Stack Deployer (Docling / Qdrant / Mosquitto)
-# Path: deployments/compose-stack/05-rag-stack-docling-qdrant-mosquitto/deploy.sh
+# Path: deployments/compose-stack/06-rag-stack-docling-qdrant-mosquitto/deploy.sh
 #
 # 合併自三份舊 deploy.sh。compose 的平台差異全部走
 # docker-compose.<platform>.yaml overlay；shell 這一層只剩一處平台分支：
@@ -13,7 +13,7 @@
 # 三份舊腳本行為不一致的地方（這裡各挑一個，並在此記錄）：
 #   * restart      amd/arm64 才有；amd 是 `down && $0 all`（遞迴 re-exec），
 #                  arm64 是 `docker compose restart`。這裡統一成 down + up -d，
-#                  與 01-infra / 02-database / 03-ai-interface / 04-automation 一致。
+#                  與 01-infra / 02-database / 04-ai-interface / 05-automation 一致。
 #   * down         nvidia 沒有；這裡三平台都有。
 #   * prep/network arm64 是在 case 分支裡才呼叫；這裡統一成進 case 之前先跑
 #                  （amd / nvidia 的做法）。
@@ -79,7 +79,7 @@ if [ "$TIGER_PLATFORM" = "amd" ]; then
     DOCLING_IMAGE=${DOCLING_IMAGE:-ghcr.io/docling-project/docling-serve-${DOCLING_ROCM_VARIANT}:${DOCLING_ROCM_REF}}
     export DOCLING_IMAGE
 
-    # GPU device group GIDs (same pattern as 06-ai-core-lemonade/deploy.sh)
+    # GPU device group GIDs (same pattern as 03-ai-core/lemonade/deploy.sh)
     # ⚠️ 這兩行的 `|| echo` 依賴 lib/common.sh 的 `set -o pipefail`：有 pipefail 時
     #    管線才會沿用 getent 的非零退出碼、fallback 才會觸發；沒有 pipefail 時退出碼
     #    由 cut 決定（空輸入仍 exit 0），會靜默變成空字串。搬走或拿掉 pipefail 前請先確認。
@@ -283,7 +283,7 @@ case "$ACTION" in
         tiger_compose down --remove-orphans
         ;;
     restart)
-        # 與 01-infra / 02-database / 03-ai-interface / 04-automation 一致的
+        # 與 01-infra / 02-database / 04-ai-interface / 05-automation 一致的
         # restart 語意：down + up -d（舊 amd 版是遞迴 re-exec 自己，行為相同）。
         LOG " Restarting RAG Stack..."
         setup_python_env

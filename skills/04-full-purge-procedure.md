@@ -68,7 +68,7 @@ sudo snap remove lemonade 2>/dev/null || true
 Remove the massive Docling Python environment and any dangling Docker images associated with the stack:
 
 ```bash
-sudo rm -rf deployments/compose-stack/05-rag-stack-docling-qdrant-mosquitto/.venv
+sudo rm -rf deployments/compose-stack/06-rag-stack-docling-qdrant-mosquitto/.venv
 sudo docker rmi ghcr.io/docling-project/docling-serve-cu130:v1.30.0 2>/dev/null || true
 # cu128 was the nvidia default before this change; kept so upgraded hosts get cleaned too.
 sudo docker rmi ghcr.io/docling-project/docling-serve-cu128:latest 2>/dev/null || true

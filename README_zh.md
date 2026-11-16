@@ -17,7 +17,7 @@
 
 - **多 GPU 支援** — AMD ROCm、NVIDIA CUDA、ARM64（Apple Silicon、Jetson、Ampere）
 - **11 層級方法論** — 從驅動安裝到監控的結構化模組，每個 Phase 可獨立部署
-- **LLM 推論** — Ollama + OpenWebUI，顯存常駐優化 + Lemonade 原生推論引擎
+- **LLM 推論** — OpenWebUI，每台一個推論後端：Ollama（NVIDIA / ARM64，顯存常駐優化）或 Lemonade 原生推論引擎（AMD）
 - **RAG 知識庫** — Qdrant 向量資料庫 + Docling 文件解析 + Mosquitto MQTT
 - **工作流自動化** — n8n Queue Mode，含 Redis 與分散式 Worker
 - **可觀測性監控** — Grafana + Prometheus + Loki + cAdvisor + DCGM Exporter（GPU 指標）
@@ -92,11 +92,11 @@ sudo -E bash deployments/compose-stack/master-deploy.sh test
 | 00 | HWI 評估 | 硬體自動校準，產生調優設定檔 |
 | 00 | 系統底座 | 驅動安裝、Docker |
 | 01 | 基礎建設 | Portainer、WebSSH |
-| 02 | 資料庫 | PostgreSQL 17、pgAdmin 4 |
-| 03 | AI 介面 | Ollama、OpenWebUI、Redis |
-| 04 | 自動化 | n8n（Queue Mode + Workers） |
-| 05 | RAG 知識庫 | Qdrant、Docling、Mosquitto |
-| 06 | AI 核心引擎 | Lemonade 推論引擎 |
+| 02 | 資料庫 | PostgreSQL 17、pgAdmin 4、Redis |
+| 03 | AI 核心引擎 | 推論後端：Ollama（NVIDIA / ARM64）或 Lemonade（AMD） |
+| 04 | AI 介面 | OpenWebUI |
+| 05 | 自動化 | n8n（Queue Mode + Workers）、SearXNG |
+| 06 | RAG 知識庫 | Qdrant、Docling、Mosquitto |
 | 07 | 驗收測試 | 健康檢查、效能基準腳本 |
 | 08 | 備份與還原 | 一鍵備份、還原、VRAM 清除 |
 | 09 | 監控告警 | tiger-monitor、MQTT 告警流程 |
@@ -132,10 +132,10 @@ deployments/
     ├── 00-system-setup-gpu-driver-and-docker/
     ├── 01-infra-webssh-portainer/
     ├── 02-database-postgres-pgadmin/
-    ├── 03-ai-interface-ollama-openwebui-redis/
-    ├── 04-automation-n8n/
-    ├── 05-rag-stack-docling-qdrant-mosquitto/
-    ├── 06-ai-core-lemonade/
+    ├── 03-ai-core/                 # ollama/ (nvidia, arm64) · lemonade/ (amd)
+    ├── 04-ai-interface-openwebui/
+    ├── 05-automation-n8n/
+    ├── 06-rag-stack-docling-qdrant-mosquitto/
     ├── 07-validation-stack/
     ├── 08-backup-recovery/
     ├── 09-monitoring-alerting/

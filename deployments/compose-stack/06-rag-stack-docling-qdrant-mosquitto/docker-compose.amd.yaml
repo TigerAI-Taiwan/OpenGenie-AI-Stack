@@ -1,6 +1,6 @@
 # =====================================================================
 # TigerAI RAG Stack — amd overlay
-# Path: deployments/compose-stack/05-rag-stack-docling-qdrant-mosquitto/docker-compose.amd.yaml
+# Path: deployments/compose-stack/06-rag-stack-docling-qdrant-mosquitto/docker-compose.amd.yaml
 #
 # Differences from base:
 #   1. GPU access for docling and qdrant: ROCm/Vulkan uses devices

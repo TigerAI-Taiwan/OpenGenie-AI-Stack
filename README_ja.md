@@ -17,7 +17,7 @@ AMD・NVIDIA・ARM64 ハードウェアに対応した、モジュール型の�
 
 - **マルチ GPU 対応** — AMD ROCm・NVIDIA CUDA・ARM64（Apple Silicon、Jetson、Ampere）
 - **11 フェーズ方法論** — ドライバーセットアップから監視まで、フェーズごとに独立してデプロイ可能
-- **LLM 推論** — Ollama + OpenWebUI（常時 VRAM 常駐最適化）+ Lemonade ネイティブ推論エンジン
+- **LLM 推論** — OpenWebUI + ホストごとに 1 つの推論バックエンド：Ollama（NVIDIA / ARM64、常時 VRAM 常駐最適化）または Lemonade ネイティブ推論エンジン（AMD）
 - **RAG パイプライン** — Qdrant ベクター DB + Docling ドキュメント解析 + Mosquitto MQTT
 - **ワークフロー自動化** — n8n キューモード（Redis + 分散ワーカー）
 - **可観測性** — Grafana + Prometheus + Loki + cAdvisor + DCGM Exporter（GPU メトリクス）
@@ -95,11 +95,11 @@ sudo -E bash deployments/compose-stack/master-deploy.sh test
 | 00 | HWI アドバイザー | ハードウェア自動キャリブレーション、チューニングプロファイル生成 |
 | 00 | システム基盤 | ドライバーセットアップ、Docker |
 | 01 | インフラストラクチャ | Portainer、WebSSH |
-| 02 | データベース | PostgreSQL 17、pgAdmin 4 |
-| 03 | AI インターフェース | Ollama、OpenWebUI、Redis |
-| 04 | 自動化 | n8n（キューモード + ワーカー） |
-| 05 | RAG スタック | Qdrant、Docling、Mosquitto |
-| 06 | AI コアエンジン | Lemonade 推論エンジン |
+| 02 | データベース | PostgreSQL 17、pgAdmin 4、Redis |
+| 03 | AI コアエンジン | 推論バックエンド：Ollama（NVIDIA / ARM64）または Lemonade（AMD） |
+| 04 | AI インターフェース | OpenWebUI |
+| 05 | 自動化 | n8n（キューモード + ワーカー）、SearXNG |
+| 06 | RAG スタック | Qdrant、Docling、Mosquitto |
 | 07 | バリデーション | ヘルスチェック、ベンチマークスクリプト |
 | 08 | バックアップ & リカバリー | ワンクリックバックアップ、リストア、VRAM パージ |
 | 09 | 監視 & アラート | tiger-monitor、MQTT アラートワークフロー |
@@ -135,10 +135,10 @@ deployments/
     ├── 00-system-setup-gpu-driver-and-docker/
     ├── 01-infra-webssh-portainer/
     ├── 02-database-postgres-pgadmin/
-    ├── 03-ai-interface-ollama-openwebui-redis/
-    ├── 04-automation-n8n/
-    ├── 05-rag-stack-docling-qdrant-mosquitto/
-    ├── 06-ai-core-lemonade/
+    ├── 03-ai-core/                 # ollama/ (nvidia, arm64) · lemonade/ (amd)
+    ├── 04-ai-interface-openwebui/
+    ├── 05-automation-n8n/
+    ├── 06-rag-stack-docling-qdrant-mosquitto/
     ├── 07-validation-stack/
     ├── 08-backup-recovery/
     ├── 09-monitoring-alerting/
