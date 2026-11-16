@@ -1,5 +1,10 @@
 # Changelog
 
+## [v5.0.1] - 2026-11-16
+
+- 沒有 compose 變更（no compose change; aligns with Open-AI-Stack v5.0.1）：部署內容與 v5.0.0 相同，版號對齊上游。
+- [Full Release Note](v5.0.1/RELEASE-NOTE.md)
+
 ## [v5.0.0] - 2026-11-16
 
 - 模組重新編號：推論後端成為 Phase 03（`03-ai-core/ollama`、`03-ai-core/lemonade`），OpenWebUI 改為 `04-ai-interface-openwebui`，n8n 改為 `05-automation-n8n`，RAG 改為 `06-rag-stack-docling-qdrant-mosquitto`。
