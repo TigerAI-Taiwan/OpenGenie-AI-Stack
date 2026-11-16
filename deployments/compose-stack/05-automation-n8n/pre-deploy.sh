@@ -1,25 +1,26 @@
 #!/usr/bin/env bash
 # =====================================================================
-# TigerAI Phase 04 — n8n pre-deploy (read-only)
-# Path: deployments/compose-stack/04-automation-n8n/pre-deploy.sh
+# TigerAI Phase 05 — n8n pre-deploy (read-only)
+# Path: deployments/compose-stack/05-automation-n8n/pre-deploy.sh
 #
-# Checks that the n8n encryption key and database password hold real values,
-# and — only when N8N_AI_ASSISTANT_ENABLED is true — the four AI Assistant keys.
+# Checks that the n8n encryption key, database password and SearXNG secret hold
+# real values, and — only when N8N_AI_ASSISTANT_ENABLED is true (the default) —
+# the three sandbox keys.
 # COMPOSE_PROFILES must not be set at all (it would bypass that switch).
 # Read-only: writes nothing and never calls docker.
 # Exit codes: 0 all set / 1 something is missing
-# Output: one `[MISSING] 04-automation-n8n/<name> — <reason>` per missing item,
+# Output: one `[MISSING] 05-automation-n8n/<name> — <reason>` per missing item,
 #         followed by indented guidance; the last line is
-#         `PRE-DEPLOY 04-automation-n8n: N missing`.
+#         `PRE-DEPLOY 05-automation-n8n: N missing`.
 # =====================================================================
 
 # shellcheck disable=SC2016  # the $(...) in the printed fix commands must stay literal
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 # shellcheck disable=SC2034  # read by lib/common.sh's LOG/WARN/ERROR
-TIGER_LOG_PREFIX="Phase-04"
+TIGER_LOG_PREFIX="Phase-05"
 # shellcheck source=../lib/common.sh
 source "${SCRIPT_DIR}/../lib/common.sh"
-MOD="04-automation-n8n"
+MOD="05-automation-n8n"
 ENV_FILE="${TIGER_STACK_DIR}/.env"
 # Same default as deploy.sh and the compose volume.
 N8N_DIR="${N8N_DIR:-/home/wrt/TigerAI/node/n8n}"
@@ -68,9 +69,9 @@ if is_placeholder "${N8N_ENCRYPTION_KEY:-}"; then
             printf '    #   (the postgres container / user / database / schema name has unusual characters: run that check manually)\n'
         fi
         printf '    #   Only "database "%s" does not exist" or "relation "%s.migrations" does not exist" means never run.\n' "$db_name" "$db_schema"
-        # 04 compose does not pass DB_TABLE_PREFIX to n8n, so the table name is unaffected.
+        # 05 compose does not pass DB_TABLE_PREFIX to n8n, so the table name is unaffected.
         if [ -n "${DB_TABLE_PREFIX:-}" ]; then
-            printf '    #   (DB_TABLE_PREFIX is set in your env files, but 04 compose does not pass it to n8n: the table is still migrations)\n'
+            printf '    #   (DB_TABLE_PREFIX is set in your env files, but 05 compose does not pass it to n8n: the table is still migrations)\n'
         fi
         printf '    #   Any count (even 0) means it has run: recover the old key from a backup of the config file or an old .env.\n'
         printf '    #   If it cannot be found, the only path is a new, empty n8n database with a new key — a lossy migration\n'
@@ -102,7 +103,7 @@ fi
 # would start the sandbox / searxng containers with the master switch off and
 # skip the key check below. Blocked whenever it is non-empty; the switch is the
 # only supported way in. `down` is unaffected: it does not run this script.
-# Only 04 uses compose profiles today, so the check lives here alone; a module
+# Only 05 uses compose profiles today, so the check lives here alone; a module
 # that adds profiles later needs the same check.
 if [ -n "${COMPOSE_PROFILES:-}" ]; then
     missing=$((missing + 1))
@@ -113,23 +114,37 @@ if [ -n "${COMPOSE_PROFILES:-}" ]; then
     printf '    # If it is exported in your shell instead (sudo -E passes it on): unset COMPOSE_PROFILES\n'
 fi
 
-# --- AI Assistant keys -------------------------------------------------------
-# Checked only when the master switch is on; a host without the feature keeps
-# CHANGE_ME here and must pass. These are freshly generated keys, not decryption
-# keys for existing data, so generating new ones is safe (unlike
-# N8N_ENCRYPTION_KEY above).
+# --- SearXNG secret and AI Assistant sandbox keys ----------------------------
+# Freshly generated keys, not decryption keys for existing data, so generating
+# new ones is safe (unlike N8N_ENCRYPTION_KEY above).
+gen_cmd() {
+    printf '    # Writes %s; delete the line from %s/.env if it is there — it overrides the stack .env\n' "$ENV_FILE" "$SCRIPT_DIR"
+    printf '    if grep -q "^%s=" "%s"; then sed -i "s|^%s=.*|%s=$(openssl rand -hex 32)|" "%s"; else { echo; echo "%s=$(openssl rand -hex 32)"; } >> "%s"; fi\n' \
+        "$1" "$ENV_FILE" "$1" "$1" "$ENV_FILE" "$1" "$ENV_FILE"
+}
+
+# SearXNG always runs, so its secret is always checked. CHANGE_ME_searxng_secret is an older example's placeholder.
+if is_placeholder "${SEARXNG_SECRET:-}" || [ "${SEARXNG_SECRET:-}" = CHANGE_ME_searxng_secret ]; then
+    missing=$((missing + 1))
+    printf '[MISSING] %s/SEARXNG_SECRET — unset or placeholder (SearXNG always starts)\n' "$MOD"
+    printf '    # A fresh key; it decrypts no existing data\n'
+    gen_cmd SEARXNG_SECRET
+fi
+
+# Same switch semantics as deploy.sh: default true; only recognised true values count.
 # Keep is_true identical to the copy in deploy.sh, which turns the switch into
 # compose profiles.
 is_true() { case "${1:-}" in true|TRUE|True|1|yes|on) return 0 ;; *) return 1 ;; esac; }
-if is_true "${N8N_AI_ASSISTANT_ENABLED:-false}"; then
-    for k in SANDBOX_API_KEYS SANDBOX_REGISTRATION_TOKEN SANDBOX_RUNNER_API_KEY SEARXNG_SECRET; do
+if is_true "${N8N_AI_ASSISTANT_ENABLED:-true}"; then
+    for k in SANDBOX_API_KEYS SANDBOX_REGISTRATION_TOKEN SANDBOX_RUNNER_API_KEY; do
         is_placeholder "${!k:-}" || continue
         missing=$((missing + 1))
-        printf '[MISSING] %s/%s — N8N_AI_ASSISTANT_ENABLED is true but this is not set or still a placeholder\n' "$MOD" "$k"
-        printf '    # Generate a random value (writes %s; delete the line from %s/.env if it is there — it overrides the stack .env):\n' "$ENV_FILE" "$SCRIPT_DIR"
-        printf '    if grep -q "^%s=" "%s"; then sed -i "s|^%s=.*|%s=$(openssl rand -hex 32)|" "%s"; else { echo; echo "%s=$(openssl rand -hex 32)"; } >> "%s"; fi\n' \
-            "$k" "$ENV_FILE" "$k" "$k" "$ENV_FILE" "$k" "$ENV_FILE"
+        printf '[MISSING] %s/%s — N8N_AI_ASSISTANT_ENABLED is true (also when unset), the sandbox needs it\n' "$MOD" "$k"
+        gen_cmd "$k"
+        sb_missing=1
     done
+    [ -z "${sb_missing:-}" ] ||
+        printf '    # No sandbox (privileged DinD) wanted? Set N8N_AI_ASSISTANT_ENABLED=false in %s and none of the three is needed\n' "$ENV_FILE"
 fi
 
 printf 'PRE-DEPLOY %s: %d missing\n' "$MOD" "$missing"

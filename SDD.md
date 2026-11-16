@@ -32,11 +32,11 @@ deployments/
 | **00** | Advisor | HWI Advisor | `tiger-advisor.sh` — hardware calibration, auto-tuning profile generation |
 | **00** | System | Foundation | Architecture-specific driver setup (ROCm / CUDA / ARM64) |
 | **01** | Infra | Infrastructure | Portainer, WebSSH — container management and remote access |
-| **02** | DB | Database | PostgreSQL 17, pgAdmin 4 — hardened multi-schema persistence |
-| **03** | Chat | AI Interface | Ollama, OpenWebUI (HA), Redis — interactive LLM experience |
-| **04** | Auto | Automation | n8n (main + workers, queue mode) — enterprise workflow engine |
-| **05** | RAG | Knowledge Base | Qdrant, Docling, Mosquitto — vector storage and document processing |
-| **06** | Core | AI Core Engine | Lemonade — native high-performance inference engine |
+| **02** | DB | Database | PostgreSQL 17, pgAdmin 4, Redis — hardened multi-schema persistence and the shared queue/cache |
+| **03** | Core | AI Core Engine | One inference backend per host (`INFERENCE_BACKEND`): Ollama (NVIDIA / ARM64) or Lemonade (AMD) |
+| **04** | Chat | AI Interface | OpenWebUI (HA) — interactive LLM experience |
+| **05** | Auto | Automation | n8n (main + workers, queue mode), SearXNG — enterprise workflow engine |
+| **06** | RAG | Knowledge Base | Qdrant, Docling, Mosquitto — vector storage and document processing |
 | **07** | Test | Validation | `check-health.sh`, `benchmark-tps.sh` — automated QA and smoke tests |
 | **08** | Backup | Disaster Recovery | `backup-tigerai.sh`, `restore-tigerai.sh` — 1-click backup and restore |
 | **09** | Alert | Monitoring | `tiger-monitor.sh`, MQTT alert workflows — proactive health alerting |
@@ -52,12 +52,13 @@ deployments/
 | 01 | WebSSH | 8888 | Browser-based terminal |
 | 02 | PostgreSQL | 5432 | Internal only (not exposed to host) |
 | 02 | pgAdmin | 8000 | DB admin UI |
-| 03 | OpenWebUI | 8080 | LLM chat interface |
-| 03 | Ollama | 11434 | Inference API (localhost only) |
-| 04 | n8n | 5678 | Workflow automation UI |
-| 05 | Qdrant | 6333 | Vector DB REST API |
-| 05 | Docling | 5001 | Document processing API |
-| 05 | Mosquitto (MQTT) | 443 | IoT/monitoring message broker |
+| 03 | Ollama | 11434 | Inference API, NVIDIA / ARM64 (localhost only) |
+| 03 | Lemonade EDU / RAG / EMBED | 8800 / 8801 / 8802 | Inference API, AMD |
+| 04 | OpenWebUI | 8080 | LLM chat interface |
+| 05 | n8n | 5678 | Workflow automation UI |
+| 06 | Qdrant | 6333 | Vector DB REST API |
+| 06 | Docling | 5001 | Document processing API |
+| 06 | Mosquitto (MQTT) | 443 | IoT/monitoring message broker |
 | 10 | Grafana | 3000 | Observability dashboard |
 
 ---

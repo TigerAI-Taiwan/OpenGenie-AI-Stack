@@ -55,7 +55,6 @@ cd "$SCRIPT_DIR" || exit 1
 # 「這個模組在這個平台上要不要做事」由**模組自己**判斷 —— 每支 deploy.sh 都
 # source lib/common.sh，那裡保證 TIGER_PLATFORM 已設定且合法（未設 / 不合法會
 # 直接 ERROR 退出），所以模組拿得到平台資訊。不適用的模組印訊息後 exit 0。
-# 例：06-ai-core-lemonade 是 AMD 專屬，在 nvidia / arm64 上會說明並略過。
 #
 # ⚠️ 不要在這裡加回 `[ "$TIGER_PLATFORM" = "..." ] && DEPLOY_STEPS+=(...)`。
 #    那會讓「哪個平台有哪個模組」同時存在於兩個地方，而修改模組的人不會想到
@@ -67,10 +66,13 @@ DEPLOY_STEPS=(
     "00-system-setup-gpu-driver-and-docker"
     "01-infra-webssh-portainer"
     "02-database-postgres-pgadmin"
-    "03-ai-interface-ollama-openwebui-redis"
-    "04-automation-n8n"
-    "05-rag-stack-docling-qdrant-mosquitto"
-    "06-ai-core-lemonade"
+    # Entries are the directory holding deploy.sh; "03-ai-core" alone has none and would only WARN and skip.
+    # Each backend decides from INFERENCE_BACKEND; exactly one deploys, so the order does not matter.
+    "03-ai-core/ollama"
+    "03-ai-core/lemonade"
+    "04-ai-interface-openwebui"
+    "05-automation-n8n"
+    "06-rag-stack-docling-qdrant-mosquitto"
     "07-validation-stack"
     "08-backup-recovery"
     "09-monitoring-alerting"
@@ -130,7 +132,7 @@ else
     export TIGER_N8N_WORKERS=2
     # 這四個值與 00-pre-flight-advisor/deploy.sh 的 CONSERVATIVE profile 對齊
     # （THREADS=CPU/2、N8N_WORKERS=2、OWUI_UVICORN_WORKERS=2、LOG_MAX_SIZE=10m）。
-    # TIGER_OWUI_UVICORN_WORKERS 原本漏在這裡：03 的
+    # TIGER_OWUI_UVICORN_WORKERS 原本漏在這裡：04 的
     # ${TIGER_OWUI_UVICORN_WORKERS:-${OWUI_UVICORN_WORKERS:-2}} 剛好也落到 2，
     # 所以目前沒有症狀 —— 但一旦 advisor 的 CONSERVATIVE 改了值，這個不對稱就會
     # 變成「有 tiger-tuning.env 跟沒有時 OWUI 行為不同」的真 bug。
@@ -281,14 +283,14 @@ case "${1:-}" in
         run_step "08-backup-recovery" cron
 
         # MQTT Device Monitor Cron
-        # ⚠️ 這裡刻意走 run_step 委派給 05 的 deploy.sh，不要改回
-        #    `[ -f "./05-.../<某支腳本>" ]` 這種「用檔案存在與否當 guard」的寫法：
+        # ⚠️ 這裡刻意走 run_step 委派給 06 的 deploy.sh，不要改回
+        #    `[ -f "./06-.../<某支腳本>" ]` 這種「用檔案存在與否當 guard」的寫法：
         #    模組一旦重組檔案佈局，那個 [ -f ] 就會永遠是 false —— 而 if 沒中就是
         #    「安靜跳過」，不會有任何錯誤訊息，結果是 MQTT cron 默默沒被安裝。
         #    這個坑實際發生過。
         #    模組內部的檔案佈局由模組自己解析，master 不該知道，也就不會過期。
         LOG "Setting up MQTT Device Monitor cron jobs (@reboot)..."
-        run_step "05-rag-stack-docling-qdrant-mosquitto" cron
+        run_step "06-rag-stack-docling-qdrant-mosquitto" cron
 
         WARN "If this is the first run of Phase 00, please reboot: sudo reboot"
         ;;

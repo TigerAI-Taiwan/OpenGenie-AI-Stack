@@ -4,17 +4,17 @@
 # Path: deployments/compose-stack/08-backup-recovery/resource/_shared/vram-purge-common.sh
 #
 # 這個檔案「不是」入口，而是由 resource/<platform>/vram-purge.sh source 進來的
-# 共用主體：路徑推導、tiger_compose 橋接、Ollama 重啟、tiger_vram_purge_main。
+# 共用主體：路徑推導、依推論後端重啟（ollama／lemonade）、tiger_vram_purge_main。
 #
 # ⚠️ 刻意不叫 vram-purge.sh：tiger_res 的查找順序是
 #    resource/<platform>/ → resource/_shared/，若這裡也叫 vram-purge.sh，
 #    某平台入口檔一旦消失就會靜默退回本檔 —— 而本檔沒有呼叫 tiger_vram_purge_main，
-#    結果是「什麼都沒做卻回 0」的假成功（amd 還會少掉 Lemonade 重啟）。
+#    結果是「什麼都沒做卻回 0」的假成功。
 #    改名之後 `tiger_res vram-purge.sh` 只會命中平台入口，找不到時由
 #    tiger_res 自己 ERROR + exit 1。
 #
 # ⚠️ 這裡「不」呼叫 tiger_vram_purge_main —— 那一步固定由平台入口在最後做，
-#    平台專屬的重啟項（例如 amd 的 Lemonade）才排得進去。
+#    平台專屬的重啟項才排得進去（目前三平台都沒有）。
 # =====================================================================
 
 # 被單獨執行時直接報錯：source 進來時 $0 是平台入口，直接跑時兩者相同。
@@ -42,50 +42,57 @@ TIGER_PURGE_STACK_DIR="$(cd "${TIGER_MODULE_DIR}/.." && pwd -P)"
 
 # shellcheck disable=SC2034  # 由 lib/common.sh 的 LOG/WARN/ERROR 讀取
 TIGER_LOG_PREFIX="TigerAI Maintenance"
-# 這裡刻意 source lib/common.sh（而不是像 07 / 09 的共用主體那樣自己載 env）：
-# 本腳本要重啟「別的模組」的服務，而 compose 檔在統一 stack 底下叫
-# docker-compose.base.yaml + docker-compose.<platform>.yaml —— 舊版那句
-# `cd ../03-ai-interface… && docker compose restart ollama` 現在會直接失敗
-# （找不到 docker-compose.yaml），就算改成手動拼 -f 也等於把 tiger_compose
-# 的疊加與 --env-file 邏輯複製一份。TIGER_MODULE_DIR 已於上面設好，
-# lib/common.sh 會沿用它而不是從 BASH_SOURCE 反推。
 # shellcheck source=../../../lib/common.sh
 source "${TIGER_PURGE_STACK_DIR}/lib/common.sh"
 
-# --- 對其他模組下 compose 指令 ----------------------------------------------
-# 用子 shell 暫時改寫 TIGER_MODULE_DIR（master-deploy.sh 的 fallback 路徑同一招）：
-# tiger_compose / tiger_env_files 每次呼叫都重讀該變數，所以 -f 疊加與
-# --env-file 串接都會對到目標模組自己的檔案。
-purge_compose() {
-    local module="$1"; shift
-    (
-        TIGER_MODULE_DIR="${TIGER_PURGE_STACK_DIR}/${module}"
-        tiger_compose "$@"
-    )
-}
-
-# --- 共用主體：重啟 Ollama --------------------------------------------------
-# 平台入口可在 source 之後追加自己的步驟到 TIGER_PURGE_EXTRA_STEPS（函式名陣列），
-# tiger_vram_purge_main 會依序執行。
+# 平台入口可在 source 之後追加自己的步驟（函式名陣列），tiger_vram_purge_main 依序執行。
 TIGER_PURGE_EXTRA_STEPS=()
 
-purge_ai_interface() {
-    LOG "Restarting Phase 03 AI Interfaces..."
-    purge_compose 03-ai-interface-ollama-openwebui-redis restart ollama
+# Container names are fixed; no tiger_compose needed to restart them.
+purge_ollama() {
+    LOG "Restarting Phase 03 Ollama..."
+    docker container inspect ollama >/dev/null 2>&1 \
+        || ERROR "No ollama container - 03-ai-core/ollama is not deployed, nothing to restart."
+    docker restart ollama >/dev/null
 }
 
+# tiger-mode deliberately stops one of them, so only the running ones are restarted.
+purge_lemonade() {
+    LOG "Refreshing Phase 03 Lemonade Engine..."
+    local c state running="" found=""
+    for c in lemonade-edu lemonade-rag lemonade-embed; do
+        state="$(docker container inspect -f '{{.State.Running}}' "$c" 2>/dev/null)" || continue
+        found=1
+        if [ "$state" = "true" ]; then running="${running:+$running }$c"; fi
+    done
+    [ -n "$found" ] || ERROR "No lemonade-* container - 03-ai-core/lemonade is not deployed, nothing to restart."
+    if [ -z "$running" ]; then
+        WARN "No Lemonade containers running — skipping (tiger-mode may be down)."
+        return 0
+    fi
+    LOG "Restarting running Lemonade services: ${running}"
+    # shellcheck disable=SC2086  # one argument per container name
+    docker restart $running >/dev/null
+}
+
+# $1 = inference backend, passed by deploy.sh (purge / cron) as the effective value; fixed in the cron line, never re-resolved.
 tiger_vram_purge_main() {
-    LOG " Periodical VRAM Purge Starting..."
+    local backend="${1:-}"
+    case "$backend" in
+        ollama|lemonade) ;;
+        "") ERROR "No inference backend given. Use sudo -E TIGER_PLATFORM=${TIGER_PLATFORM} bash ${TIGER_MODULE_DIR}/deploy.sh purge; for cron re-run deploy.sh cron (old cron lines carry no backend)." ;;
+        *)  ERROR "Unknown inference backend '${backend}' (ollama / lemonade)." ;;
+    esac
 
-    # 1. Restart AI Interface (Ollama & OpenWebUI)
-    purge_ai_interface
+    LOG " Periodical VRAM Purge Starting (INFERENCE_BACKEND=${backend})..."
 
-    # 2. 平台專屬步驟（目前只有 amd 的 Lemonade）
+    "purge_${backend}"
+
     local step
     for step in ${TIGER_PURGE_EXTRA_STEPS[@]+"${TIGER_PURGE_EXTRA_STEPS[@]}"}; do
         "$step"
     done
 
-    LOG " VRAM Purge Complete. All GPU memory associated with AI models has been released."
+    LOG " VRAM Purge Complete. ${backend} restarted; GPU memory was released and re-allocated."
     LOG "System uptime preserved. No reboot was required."
 }

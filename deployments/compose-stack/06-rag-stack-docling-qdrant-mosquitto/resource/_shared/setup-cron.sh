@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # =====================================================================
 # TigerAI Device MQTT Cron Installer
-# Path: deployments/compose-stack/05-rag-stack-docling-qdrant-mosquitto/resource/_shared/setup-cron.sh
+# Path: deployments/compose-stack/06-rag-stack-docling-qdrant-mosquitto/resource/_shared/setup-cron.sh
 #
 # Called by deploy.sh's `cron` action, and runnable directly. Two anchors, do
 # not mix them: $SCRIPT_DIR holds what moves with this script

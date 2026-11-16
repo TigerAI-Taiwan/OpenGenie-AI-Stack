@@ -27,13 +27,13 @@
 #   resource/<platform>/vram-purge.sh
 #                       各平台的入口（tiger_res 解析到這裡）。薄包裝，只做：
 #                       source 共用主體 → 追加平台專屬的重啟項 → tiger_vram_purge_main。
-#                       amd 的入口多了 Lemonade（06-ai-core-lemonade，AMD 專屬）。
 #   resource/_shared/vram-purge-common.sh
-#                       共用主體：路徑推導、tiger_compose 橋接、Ollama 重啟、
+#                       共用主體：路徑推導、依 INFERENCE_BACKEND 重啟後端（ollama／lemonade）、
 #                       tiger_vram_purge_main。刻意不叫 vram-purge.sh —— 否則平台
 #                       入口檔一旦消失，tiger_res 會退回 _shared/，而本檔沒有呼叫
-#                       tiger_vram_purge_main，結果是「什麼都沒做卻回 0」的假成功
-#                       （amd 還會少掉 Lemonade 重啟）。
+#                       tiger_vram_purge_main，結果是「什麼都沒做卻回 0」的假成功。
+#                       cron／purge 會先 resolve 推論後端，把生效值當參數帶進去
+#                       （cron 寫死在 crontab 那一行，之後不再重新判斷）。
 # =====================================================================
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
@@ -66,7 +66,8 @@ case "$ACTION" in
         # setup-cron.sh 位於 resource/_shared/，自己解析不出平台入口，
         # 所以把 tiger_res 已解析好的 vram-purge.sh 路徑當參數傳進去。
         chmod +x "$PURGE_SCRIPT"
-        run_host_script "$CRON_SCRIPT" "$PURGE_SCRIPT"
+        tiger_inference_backend_resolve
+        run_host_script "$CRON_SCRIPT" "$PURGE_SCRIPT" "$TIGER_INFERENCE_BACKEND"
         ;;
     backup)
         # backup-tigerai.sh 目前不吃任何參數，但一樣把 "$@" 交下去 —— 與 restore
@@ -79,7 +80,8 @@ case "$ACTION" in
         run_host_script "$RESTORE_SCRIPT" "$@"
         ;;
     purge)
-        run_host_script "$PURGE_SCRIPT"
+        tiger_inference_backend_resolve
+        run_host_script "$PURGE_SCRIPT" "$TIGER_INFERENCE_BACKEND"
         ;;
     *)
         # 預設行為（含 master-deploy.sh 傳進來的 `all`）：只把腳本設成可執行。

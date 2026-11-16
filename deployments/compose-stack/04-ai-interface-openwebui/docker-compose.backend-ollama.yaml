@@ -1,0 +1,11 @@
+# =====================================================================
+# TigerAI AI Interface — INFERENCE_BACKEND=ollama (nvidia / arm64)
+# Path: deployments/compose-stack/04-ai-interface-openwebui/docker-compose.backend-ollama.yaml
+#
+# Layered by deploy.sh from the effective value; never by hand with docker compose -f.
+# PersistentConfig: only takes effect when OpenWebUI's DB has no connection setting yet.
+# =====================================================================
+services:
+  openwebui-main:
+    environment:
+      - OLLAMA_API_BASE_URL=http://ollama:11434

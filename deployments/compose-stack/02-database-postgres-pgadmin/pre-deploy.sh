@@ -33,7 +33,7 @@ if is_placeholder "${PG_PASS:-}"; then
     printf '    # Already deployed (a pgdata volume exists)? Do NOT generate a new value: postgres keeps the old one and every service using it fails to authenticate.\n'
     printf '    #   Put the password the database actually uses back into PG_PASS in %s.\n' "$ENV_FILE"
     printf '    # If the database really was initialised with the literal CHANGE_ME, putting that back is still blocked. Set a new value in .env\n'
-    printf '    #   and in the database in one go, then redeploy every module that reads PG_PASS (03-ai-interface, 04-automation-n8n, 10-observability-grafana).\n'
+    printf '    #   and in the database in one go, then redeploy every module that reads PG_PASS (04-ai-interface, 05-automation-n8n, 10-observability-grafana).\n'
     printf '    #   Check %s/.env for a PG_PASS line too: it overrides the stack .env for this module.\n' "$SCRIPT_DIR"
     # Only print a pasteable command when nothing in it can unbalance the quotes
     # or be expanded by the operator's shell.

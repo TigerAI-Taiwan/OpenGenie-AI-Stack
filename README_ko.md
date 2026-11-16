@@ -17,7 +17,7 @@ AMD, NVIDIA, ARM64 하드웨어를 지원하는 모듈형 셀프호스팅 AI 인
 
 - **멀티 GPU 지원** — AMD ROCm, NVIDIA CUDA, ARM64 (Apple Silicon, Jetson, Ampere)
 - **11단계 방법론** — 드라이버 설치부터 모니터링까지, 각 단계를 독립적으로 배포 가능
-- **LLM 추론** — Ollama + OpenWebUI (항상 준비된 VRAM 최적화) + Lemonade 네이티브 추론 엔진
+- **LLM 추론** — OpenWebUI + 호스트당 하나의 추론 백엔드: Ollama (NVIDIA / ARM64, 항상 준비된 VRAM 최적화) 또는 Lemonade 네이티브 추론 엔진 (AMD)
 - **RAG 파이프라인** — Qdrant 벡터 DB + Docling 문서 처리 + Mosquitto MQTT
 - **워크플로우 자동화** — n8n 큐 모드 (Redis + 분산 워커)
 - **가시성 모니터링** — Grafana + Prometheus + Loki + cAdvisor + DCGM Exporter (GPU 메트릭)
@@ -89,11 +89,11 @@ TIGER_PLATFORM=nvidia sudo -E bash \
 | 00 | HWI 어드바이저 | 하드웨어 자동 캘리브레이션, 튜닝 프로파일 생성 |
 | 00 | 시스템 기반 | 드라이버 설치, Docker |
 | 01 | 인프라스트럭처 | Portainer, WebSSH |
-| 02 | 데이터베이스 | PostgreSQL 17, pgAdmin 4 |
-| 03 | AI 인터페이스 | Ollama, OpenWebUI, Redis |
-| 04 | 자동화 | n8n (큐 모드 + 워커) |
-| 05 | RAG 스택 | Qdrant, Docling, Mosquitto |
-| 06 | AI 코어 엔진 | Lemonade 추론 엔진 |
+| 02 | 데이터베이스 | PostgreSQL 17, pgAdmin 4, Redis |
+| 03 | AI 코어 엔진 | 추론 백엔드: Ollama (NVIDIA / ARM64) 또는 Lemonade (AMD) |
+| 04 | AI 인터페이스 | OpenWebUI |
+| 05 | 자동화 | n8n (큐 모드 + 워커), SearXNG |
+| 06 | RAG 스택 | Qdrant, Docling, Mosquitto |
 | 07 | 검증 | 헬스 체크, 벤치마크 스크립트 |
 | 08 | 백업 & 복구 | 원클릭 백업, 복원, VRAM 초기화 |
 | 09 | 모니터링 & 알림 | tiger-monitor, MQTT 알림 워크플로우 |
@@ -129,10 +129,10 @@ deployments/
     ├── 00-system-setup-gpu-driver-and-docker/
     ├── 01-infra-webssh-portainer/
     ├── 02-database-postgres-pgadmin/
-    ├── 03-ai-interface-ollama-openwebui-redis/
-    ├── 04-automation-n8n/
-    ├── 05-rag-stack-docling-qdrant-mosquitto/
-    ├── 06-ai-core-lemonade/
+    ├── 03-ai-core/                 # ollama/ (nvidia, arm64) · lemonade/ (amd)
+    ├── 04-ai-interface-openwebui/
+    ├── 05-automation-n8n/
+    ├── 06-rag-stack-docling-qdrant-mosquitto/
     ├── 07-validation-stack/
     ├── 08-backup-recovery/
     ├── 09-monitoring-alerting/

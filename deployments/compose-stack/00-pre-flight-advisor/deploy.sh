@@ -121,7 +121,7 @@ esac
 # tiger-deploy.sh runs this from a different directory than master-deploy.sh
 # does, and lib/common.sh only ever reads <stack>/tiger-tuning.env.
 #
-# ⚠️ key 必須是 TIGER_OWUI_UVICORN_WORKERS —— 03-ai-interface 只讀這個名字。
+# ⚠️ key 必須是 TIGER_OWUI_UVICORN_WORKERS —— 04-ai-interface 只讀這個名字。
 # ⚠️ 下面的 heredoc 未加引號，註解也會被展開後寫進輸出檔，別放進去。
 OUTPUT_FILE="${TIGER_STACK_DIR}/tiger-tuning.env"
 cat <<EOF > "$OUTPUT_FILE"

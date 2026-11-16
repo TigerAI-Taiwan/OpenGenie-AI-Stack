@@ -17,7 +17,7 @@ A modular, self-hosted AI infrastructure framework for AMD, NVIDIA, and ARM64 ha
 
 - **Multi-GPU Support** — AMD ROCm, NVIDIA CUDA, ARM64 (Apple Silicon, Jetson, Ampere)
 - **11-Phase Methodology** — structured, independently deployable modules from driver setup to monitoring
-- **LLM Inference** — Ollama + OpenWebUI with always-ready VRAM optimization and Lemonade native engine
+- **LLM Inference** — OpenWebUI on one inference backend per host: Ollama (NVIDIA / ARM64, always-ready VRAM optimization) or the Lemonade native engine (AMD)
 - **RAG Pipeline** — Qdrant vector DB + Docling document processor + Mosquitto MQTT
 - **Workflow Automation** — n8n in queue mode with Redis and distributed workers
 - **Observability** — Grafana + Prometheus + Loki + cAdvisor + DCGM Exporter (GPU metrics)
@@ -96,11 +96,11 @@ sudo -E bash deployments/compose-stack/master-deploy.sh test
 | 00 | HWI Advisor | Auto hardware calibration, tuning profile |
 | 00 | Foundation | Driver setup, Docker |
 | 01 | Infrastructure | Portainer, WebSSH |
-| 02 | Database | PostgreSQL 17, pgAdmin 4 |
-| 03 | AI Interface | Ollama, OpenWebUI, Redis |
-| 04 | Automation | n8n (queue mode + workers) |
-| 05 | RAG Stack | Qdrant, Docling, Mosquitto |
-| 06 | AI Core Engine | Lemonade inference engine |
+| 02 | Database | PostgreSQL 17, pgAdmin 4, Redis |
+| 03 | AI Core Engine | Inference backend: Ollama (NVIDIA / ARM64) or Lemonade (AMD) |
+| 04 | AI Interface | OpenWebUI |
+| 05 | Automation | n8n (queue mode + workers), SearXNG |
+| 06 | RAG Stack | Qdrant, Docling, Mosquitto |
 | 07 | Validation | Health checks, benchmark scripts |
 | 08 | Backup & Recovery | 1-click backup, restore, VRAM purge |
 | 09 | Monitoring & Alerts | tiger-monitor, MQTT alerting |
@@ -137,10 +137,10 @@ deployments/
     ├── 00-system-setup-gpu-driver-and-docker/
     ├── 01-infra-webssh-portainer/
     ├── 02-database-postgres-pgadmin/
-    ├── 03-ai-interface-ollama-openwebui-redis/
-    ├── 04-automation-n8n/
-    ├── 05-rag-stack-docling-qdrant-mosquitto/
-    ├── 06-ai-core-lemonade/
+    ├── 03-ai-core/                 # ollama/ (nvidia, arm64) · lemonade/ (amd)
+    ├── 04-ai-interface-openwebui/
+    ├── 05-automation-n8n/
+    ├── 06-rag-stack-docling-qdrant-mosquitto/
     ├── 07-validation-stack/
     ├── 08-backup-recovery/
     ├── 09-monitoring-alerting/

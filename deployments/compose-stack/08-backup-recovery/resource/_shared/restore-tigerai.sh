@@ -151,9 +151,9 @@ TARGET=$2
 # containers, so an entry for it would be a no-op on every restore.
 PG_CLIENT_SERVICES=(
     "02-database-postgres-pgadmin|pgadmin"
-    "03-ai-interface-ollama-openwebui-redis|openwebui-main"
-    "04-automation-n8n|n8n-main"
-    "04-automation-n8n|n8n-worker"
+    "04-ai-interface-openwebui|openwebui-main"
+    "05-automation-n8n|n8n-main"
+    "05-automation-n8n|n8n-worker"
     "10-observability-grafana|grafana"
 )
 # "<module>|<service>" entries this run actually stopped (so only those get started
@@ -710,14 +710,14 @@ restore_data() {
     fi
 
     # State of play, not a to-do: stop_pg_clients() already ran. It only stops the
-    # PostgreSQL clients, so anything else that writes under these paths (ollama,
-    # qdrant, …) is still up and has to be handled by the operator.
+    # PostgreSQL clients, so anything else that writes under these paths (qdrant,
+    # docling, …) is still up and has to be handled by the operator.
     if [ "${#STOPPED_SERVICES[@]}" -eq 0 ]; then
         WARN "This will OVERWRITE existing data at the following paths. No container was stopped by this run — stop whatever writes to them first:"
     elif [ "$STOP_FAILED" -gt 0 ]; then
-        WARN "This will OVERWRITE existing data at the following paths. ${#STOPPED_SERVICES[@]} PostgreSQL client(s) are stopped, but ${STOP_FAILED} could NOT be stopped (see the warnings above) and other containers (ollama, qdrant, …) were never touched — stop them yourself if they write to these paths:"
+        WARN "This will OVERWRITE existing data at the following paths. ${#STOPPED_SERVICES[@]} PostgreSQL client(s) are stopped, but ${STOP_FAILED} could NOT be stopped (see the warnings above) and other containers (qdrant, docling, …) were never touched — stop them yourself if they write to these paths:"
     else
-        WARN "This will OVERWRITE existing data at the following paths. The PostgreSQL clients listed above are stopped for the duration of this restore; other containers (ollama, qdrant, …) are still running — stop them yourself if they write to these paths:"
+        WARN "This will OVERWRITE existing data at the following paths. The PostgreSQL clients listed above are stopped for the duration of this restore; other containers (qdrant, docling, …) are still running — stop them yourself if they write to these paths:"
     fi
     for entry in "${targets[@]}"; do
         echo "    - ${entry#*=}"

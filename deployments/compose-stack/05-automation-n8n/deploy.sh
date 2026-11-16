@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # =====================================================================
 # TigerAI n8n Deployer (queue mode: 1 main + N workers)
-# Path: deployments/compose-stack/04-automation-n8n/deploy.sh
+# Path: deployments/compose-stack/05-automation-n8n/deploy.sh
 #
 # Platform overlay: amd only, to keep its host.docker.internal defaults for
 # the editor and webhook URLs — see docker-compose.amd.yaml.
@@ -30,18 +30,18 @@ export N8N_DIR="${N8N_DIR:-/home/wrt/TigerAI/node/n8n}"
 export FILES_DIR="${FILES_DIR:-/home/wrt/TigerAI/node/n8n/files}"
 
 usage() {
-    echo "Usage: sudo $0 {all | main | worker | down | restart}"
+    echo "Usage: sudo $0 {all | main | worker | searxng | down | restart}"
     exit 1
 }
 
-# The encryption key, database password and (when the AI Assistant is enabled)
-# AI Assistant key checks live in pre-deploy.sh (called below), so
-# master-deploy.sh can report every module's missing values at once.
+# The encryption key, database password, SearXNG secret and (when the AI
+# Assistant is enabled) sandbox key checks live in pre-deploy.sh (called below),
+# so master-deploy.sh can report every module's missing values at once.
 
 # --- AI Assistant master switch -> compose profiles ---
-# sandbox (privileged DinD) and searxng (takes host port 30366) sit behind
-# compose profiles and do not start by default; a host whose .env does not set
-# the switch stays as it was, with no extra containers.
+# The switch controls only the sandbox (privileged DinD) and whether n8n is wired
+# to SearXNG; SearXNG itself always runs (start_searxng). Default true, also when
+# the line is missing from .env; set false to remove the sandbox.
 # Keep is_true identical to the copy in pre-deploy.sh, which gates the key check.
 is_true() { case "${1:-}" in true|TRUE|True|1|yes|on) return 0 ;; *) return 1 ;; esac; }
 
@@ -50,7 +50,7 @@ is_true() { case "${1:-}" in true|TRUE|True|1|yes|on) return 0 ;; *) return 1 ;;
 # once such a line becomes the last command of a function or branch, the 1
 # becomes its return value and aborts the caller. `if` does not depend on where
 # the line sits (same reasoning as master-deploy.sh's run_step).
-AI_ENABLED="${N8N_AI_ASSISTANT_ENABLED:-false}"
+AI_ENABLED="${N8N_AI_ASSISTANT_ENABLED:-true}"
 # A typo (e.g. "tru") is treated as off, and with the switch off all / main /
 # worker remove the sandbox containers — so say so instead of doing it silently.
 # Warn only; pre-deploy.sh applies the same is_true and needs no change.
@@ -58,15 +58,15 @@ case "$AI_ENABLED" in
     false|FALSE|False|0|no|off) ;;
     *)
         if ! is_true "$AI_ENABLED"; then
-            WARN "N8N_AI_ASSISTANT_ENABLED='${AI_ENABLED}' is not recognised; treating it as off (sandbox / searxng containers will be removed). Use true or false."
+            WARN "N8N_AI_ASSISTANT_ENABLED='${AI_ENABLED}' is not recognised; treating it as off (the sandbox containers will be removed; SearXNG keeps running). Use true or false."
         fi
         ;;
 esac
 PROFILE_ARGS=()
 if is_true "$AI_ENABLED"; then
-    PROFILE_ARGS+=(--profile sandbox --profile searxng)
-    # While searxng is not running this stays empty (web search not configured)
-    # rather than pointing n8n-main at a host that does not exist.
+    PROFILE_ARGS+=(--profile sandbox)
+    # With the switch off this stays empty (web search not configured): n8n is
+    # not wired to SearXNG even though SearXNG runs.
     export N8N_INSTANCE_AI_SEARXNG_URL="${N8N_INSTANCE_AI_SEARXNG_URL:-http://searxng:8080}"
 fi
 # Upstream variable name, read by n8n-main itself. Always derived from the master
@@ -75,8 +75,8 @@ N8N_INSTANCE_AI_SANDBOX_ENABLED="$(is_true "$AI_ENABLED" && echo true || echo fa
 export N8N_INSTANCE_AI_SANDBOX_ENABLED
 
 # With the switch off, `up` without profiles leaves containers of profiled
-# services alone, so a host switched from true back to false would keep sandbox /
-# searxng running. Stop and remove them explicitly. With nothing to remove it
+# services alone, so a host switched from true back to false would keep the
+# sandbox running. Stop and remove it explicitly (SearXNG is not touched). With nothing to remove it
 # prints "No stopped containers" and exits 0. Named volumes are kept (no -v), so
 # switching back on reuses the runner's image cache. The profiles are passed so
 # the named services are in scope whatever the compose version.
@@ -84,8 +84,19 @@ remove_ai_assistant_if_disabled() {
     if is_true "$AI_ENABLED"; then
         return 0
     fi
-    LOG "N8N_AI_ASSISTANT_ENABLED is off: removing any AI Assistant containers (sandbox / searxng)..."
-    tiger_compose --profile sandbox --profile searxng rm -sf sandbox-certs sandbox-api sandbox-runner-1 searxng
+    LOG "N8N_AI_ASSISTANT_ENABLED is off: removing any AI Assistant sandbox containers..."
+    tiger_compose --profile sandbox rm -sf sandbox-certs sandbox-api sandbox-runner-1
+}
+
+# SearXNG ignores the switch; started on its own before n8n. WARN only: a search outage must not fail the n8n deploy.
+start_searxng() {
+    LOG "Starting SearXNG (always deployed, independent of N8N_AI_ASSISTANT_ENABLED)..."
+    if tiger_compose --profile searxng up -d searxng; then
+        LOG "✅ SearXNG started (bound to 127.0.0.1:${SEARXNG_PORT:-30366} only)"
+    else
+        WARN "SearXNG failed to start - n8n deploys anyway; only n8n AI Assistant web search is affected."
+        WARN "Retry alone: TIGER_PLATFORM=${TIGER_PLATFORM:-<platform>} sudo -E bash ${SCRIPT_DIR}/deploy.sh searxng"
+    fi
 }
 
 # --- Ensure the dedicated n8n database exists ---
@@ -138,7 +149,7 @@ ACTION="$1"
 # prep_files / ensure_network / ensure_db, so a rejected run has not yet created
 # directories, a network, or touched the database.
 case "$ACTION" in
-    all|main|worker|restart) bash "${SCRIPT_DIR}/pre-deploy.sh" || exit $? ;;
+    all|main|worker|searxng|restart) bash "${SCRIPT_DIR}/pre-deploy.sh" || exit $? ;;
 esac
 prep_files
 ensure_network
@@ -149,6 +160,7 @@ case "$ACTION" in
         # TIGER_N8N_WORKERS comes from tiger-tuning.env when the advisor has run.
         WORKER_COUNT="${TIGER_N8N_WORKERS:-${N8N_WORKERS:-2}}"
         LOG "Starting the n8n stack with $WORKER_COUNT workers..."
+        start_searxng
         remove_ai_assistant_if_disabled
         tiger_compose "${PROFILE_ARGS[@]}" up -d --scale "n8n-worker=$WORKER_COUNT"
         LOG "✅ n8n deployed: 1 main + $WORKER_COUNT workers"
@@ -163,8 +175,13 @@ case "$ACTION" in
         ensure_db
         WORKER_COUNT="${TIGER_N8N_WORKERS:-${N8N_WORKERS:-2}}"
         LOG "Launching the n8n workflow engine (queue mode) with $WORKER_COUNT workers..."
+        start_searxng
         remove_ai_assistant_if_disabled
         tiger_compose "${PROFILE_ARGS[@]}" up -d --scale "n8n-worker=$WORKER_COUNT"
+        ;;
+    searxng)
+        # Retry for a failed start_searxng on its own; does not touch n8n or the sandbox.
+        start_searxng
         ;;
     down)
         LOG "Stopping n8n services..."
@@ -179,7 +196,8 @@ case "$ACTION" in
         # env or compose changes and does not respect --scale, so it cannot
         # reliably restore the multi-worker queue setup.
         # down stops everything (including a profile that was just switched off);
-        # the `all` run brings up only the profiles currently enabled.
+        # the `all` run starts SearXNG again and brings up only the profiles
+        # currently enabled.
         tiger_compose --profile '*' down && bash "$0" all
         ;;
     *)

@@ -25,9 +25,13 @@ case "$ACTION" in
         LOG "Monitoring service removed."
         ;;
     *)
-        # -E so TIGER_PLATFORM survives the sudo boundary; the install action
-        # bakes it into the systemd unit.
-        sudo -E "$MONITOR_SCRIPT" install
+        # The inference backend is decided here and written into the unit's
+        # Environment=; the daemon never re-resolves it.
+        tiger_inference_backend_resolve
+        LOG "Inference backend: $TIGER_INFERENCE_BACKEND"
+        # -E so TIGER_PLATFORM survives the sudo boundary; the backend goes through
+        # env explicitly so it survives even where sudo's env_reset would drop it.
+        sudo -E env TIGER_MONITOR_BACKEND="$TIGER_INFERENCE_BACKEND" "$MONITOR_SCRIPT" install
         LOG "Monitoring service deployed and activated."
         ;;
 esac

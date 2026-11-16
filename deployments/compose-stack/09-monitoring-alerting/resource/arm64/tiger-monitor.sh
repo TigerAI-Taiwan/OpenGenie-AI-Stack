@@ -11,7 +11,7 @@
 # hard-coded depth.
 # =====================================================================
 
-# Load bearing: the systemd unit sets no Environment=, so this is the only
+# Load bearing: the systemd unit sets no TIGER_PLATFORM, so this is the only
 # place the platform gets set for the service. Do not remove.
 export TIGER_PLATFORM=arm64
 
@@ -23,7 +23,8 @@ export TIGER_MONITOR_ENTRY
 # shellcheck source=../_shared/tiger-monitor-common.sh
 source "${TIGER_MODULE_DIR}/resource/_shared/tiger-monitor-common.sh"
 
-# arm64 has no platform-specific services: 06-ai-core-lemonade is amd-only, and
-# LLM inference here is Ollama in 03-ai-interface, already in the base list.
+# arm64 has no platform-specific services: 03-ai-core/lemonade is amd-only, and
+# LLM inference here is Ollama in 03-ai-core/ollama, added by the shared body when
+# TIGER_MONITOR_BACKEND=ollama.
 
 tiger_monitor_main "${1:-}"

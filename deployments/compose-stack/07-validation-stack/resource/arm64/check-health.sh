@@ -9,9 +9,9 @@
 #   1. source the shared body and run it
 #   2. print the closing line, which must be last
 #
-# arm64 has no platform-specific checks: 06-ai-core-lemonade is amd-only, and
-# LLM inference on this platform is Ollama in 03-ai-interface, which the
-# shared body already covers.
+# arm64 has no platform-specific checks: 03-ai-core/lemonade is amd-only, and
+# LLM inference on this platform is Ollama in 03-ai-core/ollama
+# (INFERENCE_BACKEND=ollama), which the shared body already covers.
 #
 # WARNING: must stay at the FIRST level of resource/arm64/. The `../..` is a
 # hard-coded depth.

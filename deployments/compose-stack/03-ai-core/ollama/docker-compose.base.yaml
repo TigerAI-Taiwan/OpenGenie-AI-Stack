@@ -1,0 +1,55 @@
+# =====================================================================
+# TigerAI AI Core — Ollama (base)
+# Path: deployments/compose-stack/03-ai-core/ollama/docker-compose.base.yaml
+#
+# The inference backend for nvidia / arm64 (INFERENCE_BACKEND=ollama). The
+# service definition is unchanged from the ollama service that used to live in
+# the pre-renumber AI-interface module.
+#
+# WARNING: base deliberately carries NO GPU mount; docker-compose.<platform>.yaml
+# adds it. AMD has no overlay: it cannot select ollama (validation rejects it).
+# =====================================================================
+
+# Pin the project name; the directory name is only "ollama". Data is a bind mount, so the new project loses nothing.
+name: 03-ai-core-ollama
+
+services:
+  ollama:
+    image: ${OLLAMA_IMAGE:-ollama/ollama:latest}
+    container_name: ollama
+    restart: always
+    ports:
+      - "${OLLAMA_PORT:-11434}:11434"
+    networks:
+      - ai_stack_net
+    # GPU access is intentionally absent here — see the warning in the header.
+    volumes:
+      - /var/lib/ollama:/root/.ollama
+    environment:
+      - OLLAMA_FLASH_ATTENTION=${OLLAMA_FLASH_ATTENTION:-1}
+      - OLLAMA_NUM_PARALLEL=${OLLAMA_NUM_PARALLEL:-2}
+      - OLLAMA_MAX_LOADED_MODELS=${OLLAMA_MAX_LOADED_MODELS:-2}
+      # Unset, ollama picks a tier from detected VRAM (256k on a 128GB box).
+      - OLLAMA_CONTEXT_LENGTH=${OLLAMA_CONTEXT_LENGTH:-32768}
+      # -1 = keep models resident in VRAM indefinitely (never unload).
+      - OLLAMA_KEEP_ALIVE=${OLLAMA_KEEP_ALIVE:--1}
+      - OLLAMA_MAX_QUEUE=${OLLAMA_MAX_QUEUE:-512}
+      - OLLAMA_HOST=${OLLAMA_HOST:-0.0.0.0:11434}
+      - OLLAMA_ORIGINS=${OLLAMA_ORIGINS:-*}
+    # The ollama runtime image has no curl or wget; use the bundled CLI, which
+    # calls GET /api/tags. start_period covers server startup.
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
+
+networks:
+  ai_stack_net:
+    external: true

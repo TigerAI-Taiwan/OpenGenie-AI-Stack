@@ -1,0 +1,7 @@
+# =====================================================================
+# TigerAI AI Interface — amd overlay
+# Path: deployments/compose-stack/04-ai-interface-openwebui/docker-compose.amd.yaml
+#
+# No platform difference today (Ollama's GPU mount moved to 03-ai-core/ollama, redis to 02); kept as the place for future ones.
+# =====================================================================
+services: {}

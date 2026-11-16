@@ -1,6 +1,6 @@
 # =====================================================================
 # TigerAI RAG Stack (Docling / Qdrant / Mosquitto) — base
-# Path: deployments/compose-stack/05-rag-stack-docling-qdrant-mosquitto/docker-compose.base.yaml
+# Path: deployments/compose-stack/06-rag-stack-docling-qdrant-mosquitto/docker-compose.base.yaml
 #
 # Every platform difference lives in docker-compose.<platform>.yaml:
 #   docling image      nvidia: docling-serve-cu130   amd / arm64: docling-serve-cpu
@@ -9,7 +9,7 @@
 #                      nvidia / arm64: deploy.resources.reservations
 #
 # WARNING: base deliberately carries NO GPU mount, for the same reason as
-# 03-ai-interface: if base declared nvidia's reservation, the amd overlay
+# 03-ai-core/ollama: if base declared nvidia's reservation, the amd overlay
 # would need `!reset` to remove it and an AMD machine would be left with a
 # stray `driver: nvidia` reservation.
 # =====================================================================

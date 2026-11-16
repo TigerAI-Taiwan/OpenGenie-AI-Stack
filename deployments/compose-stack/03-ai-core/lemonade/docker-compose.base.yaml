@@ -1,14 +1,13 @@
 # =====================================================================
 # TigerAI Lemonade AI Core — containerized (AMD Vulkan)
-# Path: deployments/compose-stack/06-ai-core-lemonade/docker-compose.base.yaml
+# Path: deployments/compose-stack/03-ai-core/lemonade/docker-compose.base.yaml
 #
 # WARNING: this file is used by the amd platform ONLY.
 #
 # Lemonade is deployed on amd alone, as the three containers below (Vulkan via
-# /dev/kfd + /dev/dri). On nvidia and arm64 the LLM inference path is Ollama in
-# 03-ai-interface: deploy.sh logs that the module does not apply and exits 0
-# before reaching tiger_compose, which is why master-deploy.sh can keep this
-# module in DEPLOY_STEPS on every platform.
+# /dev/kfd + /dev/dri). DEPLOY_STEPS includes 03-ai-core/lemonade on every
+# platform; deploy.sh decides from INFERENCE_BACKEND and the platform
+# (otherwise SKIP, exit 0) before reaching tiger_compose.
 #
 # There is no overlay for this module because there is nothing to overlay.
 #
@@ -22,6 +21,11 @@
 # file. Anchors do not cross compose files — if this module ever gains an
 # overlay, any service that overlay adds must carry its own logging block.
 # =====================================================================
+
+# The project name would default to the directory name (lemonade); pinned as 03-ai-core-<name>, same convention as
+# 03-ai-core/ollama. Old volumes carry the pre-renumber project name as prefix; migrations/renumber-migrate.sh copies
+# them to this project name.
+name: 03-ai-core-lemonade
 
 x-lemonade-base: &lemonade-base
   image: ghcr.io/lemonade-sdk/lemonade-server:v11.9.0

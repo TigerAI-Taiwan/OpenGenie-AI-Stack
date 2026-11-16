@@ -140,7 +140,7 @@ case "$ACTION" in
         tiger_compose down --remove-orphans
         ;;
     restart)
-        # 與 01-infra / 02-database / 03-ai-interface 一致的 restart 語意：down + up -d。
+        # 與 01-infra / 02-database / 04-ai-interface 一致的 restart 語意：down + up -d。
         LOG " Restarting Observability Stack..."
         ensure_db
         tiger_compose down --remove-orphans

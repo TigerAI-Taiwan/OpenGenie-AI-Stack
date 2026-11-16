@@ -27,6 +27,22 @@ read_env_var() {
   printf '%s' "$val"
 }
 
+# Ollama is the only backend with a benchmark; anything else gets a clear message instead of
+# a connection error against an Ollama that does not exist. Deploy refuses an empty value too.
+BACKEND="$(read_env_var INFERENCE_BACKEND)"
+case "$BACKEND" in
+    ollama) ;;
+    lemonade)
+        echo "[TigerAI Benchmark ERROR] INFERENCE_BACKEND=lemonade has no benchmark (there never was one for Lemonade)" >&2
+        exit 1 ;;
+    "")
+        echo "[TigerAI Benchmark ERROR] INFERENCE_BACKEND is not set in .env (ollama on nvidia/arm64, lemonade on amd)" >&2
+        exit 1 ;;
+    *)
+        echo "[TigerAI Benchmark ERROR] INFERENCE_BACKEND='${BACKEND}' in .env is not recognised (ollama / lemonade)" >&2
+        exit 1 ;;
+esac
+
 # benchmark_tps.py reads OLLAMA_HOST. An OLLAMA_HOST already in the environment
 # wins; ${VAR:-…} does not expand the fallback then.
 OLLAMA_PORT_RESOLVED="$(read_env_var OLLAMA_PORT)"
@@ -44,7 +60,7 @@ fi
 export OLLAMA_HOST
 
 # ⚠️ 不要改回 `pip3 install requests`：近期 Debian/Ubuntu 的系統 Python 是
-#    externally-managed。venv 位置與 05-rag-stack 同慣例。
+#    externally-managed。venv 位置與 06-rag-stack 同慣例。
 VENV_DIR="$MODULE_DIR/.venv"
 VENV_PYTHON="$VENV_DIR/bin/python3"
 

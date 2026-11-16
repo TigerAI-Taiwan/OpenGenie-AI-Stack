@@ -17,6 +17,7 @@
 #     TIGER_PLATFORM / TIGER_STACK_DIR / TIGER_MODULE_DIR / TIGER_MODULE
 #     tiger_env_files            env files that exist, lowest priority first
 #     is_placeholder <value>     true if empty / whitespace / exactly CHANGE_ME
+#     tiger_inference_backend_*  INFERENCE_BACKEND validate / resolve / cutover (§8)
 #
 # This file sets `set -Eeo pipefail` and an ERR trap for the sourcing
 # shell, so module deploy.sh scripts must not set them again.
@@ -213,6 +214,10 @@ ensure_network() {
 # project name, so an upgraded machine attaches to a fresh, empty set of
 # volumes and the data appears to have vanished. Modules may be moved, never
 # renamed in passing.
+# A deliberate rename must ship with a one-shot migration (e.g.
+# migrations/renumber-migrate.sh: stop the old project, copy the named volumes
+# to the new prefix). 03-ai-core/<backend> pins its project name with `name:`
+# in its compose file, so its directory name does not decide the project.
 #
 # WARNING: the base file is docker-compose.base.yaml, not docker-compose.yaml.
 # docker compose auto-loads the latter, so anyone running `docker compose up`
@@ -258,4 +263,134 @@ tiger_res() {
         fi
     done
     ERROR "resource not found: ${name} (looked in resource/${TIGER_PLATFORM}/ and resource/_shared/)"
+}
+
+# --- 8) Inference backend -----------------------------------------------------
+# One backend per host; container names and old projects must stay aligned with migrations/renumber-migrate.sh.
+# Results come only from resolve: a same-named variable inherited via sudo -E is not a cache.
+unset TIGER_INFERENCE_BACKEND TIGER_INFERENCE_BACKEND_EXPLICIT TIGER_INFERENCE_BACKENDS_PRESENT
+
+# Container names per backend, and the compose projects this stack may remove (new name + pre-renumber name).
+_tiger_backend_containers() {
+    case "$1" in
+        ollama)   echo "ollama" ;;
+        lemonade) echo "lemonade-edu lemonade-rag lemonade-embed" ;;
+    esac
+}
+_tiger_backend_projects() {
+    case "$1" in
+        ollama)   echo "03-ai-core-ollama 03-ai-interface-ollama-openwebui-redis" ;;
+        lemonade) echo "03-ai-core-lemonade 06-ai-core-lemonade" ;;
+    esac
+}
+
+# Validate only, no docker (used by pre-deploy). Empty is invalid; invalid returns 1 with the reason on stderr.
+tiger_inference_backend_validate() {
+    local v="${1-}" plat="${2-}" allowed
+    case "$plat" in
+        amd)          allowed="lemonade" ;;
+        nvidia|arm64) allowed="ollama" ;;
+        *) echo "INFERENCE_BACKEND validation: unknown platform '${plat}'" >&2; return 1 ;;
+    esac
+    if [ -z "$v" ]; then
+        echo "INFERENCE_BACKEND is not set; ${plat} requires INFERENCE_BACKEND=${allowed}" >&2
+        return 1
+    fi
+    case "$v" in
+        ollama|lemonade) ;;
+        *) echo "INFERENCE_BACKEND='${v}' is not recognised; ${plat} accepts: ${allowed}" >&2; return 1 ;;
+    esac
+    case " ${allowed} " in
+        *" ${v} "*) return 0 ;;
+    esac
+    echo "INFERENCE_BACKEND=${v} is not supported on ${plat}; ${plat} accepts: ${allowed}" >&2
+    return 1
+}
+
+# Effective value -> TIGER_INFERENCE_BACKEND / _EXPLICIT / TIGER_INFERENCE_BACKENDS_PRESENT.
+# Never call it as x="$(...)": variables set in a subshell do not come back.
+tiger_inference_backend_resolve() {
+    if [ -n "${TIGER_INFERENCE_BACKEND:-}" ]; then return 0; fi
+    local raw="${INFERENCE_BACKEND:-}" reason b c present=""
+    reason="$(tiger_inference_backend_validate "$raw" "$TIGER_PLATFORM" 2>&1)" \
+        || ERROR "${reason}. Fix INFERENCE_BACKEND in ${TIGER_STACK_DIR}/.env and re-run."
+    docker info >/dev/null 2>&1 || ERROR "Cannot call docker (not installed or no permission; use sudo) - cannot tell which inference backend is on this host."
+    for b in ollama lemonade; do
+        for c in $(_tiger_backend_containers "$b"); do
+            if docker container inspect "$c" >/dev/null 2>&1; then present="${present:+$present }$b"; break; fi
+        done
+    done
+    TIGER_INFERENCE_BACKENDS_PRESENT="$present"
+    TIGER_INFERENCE_BACKEND="$raw"
+    TIGER_INFERENCE_BACKEND_EXPLICIT=1
+}
+
+# Backend cut-over: removes the other backends' containers. Called only by the 03 modules, after resolve.
+tiger_inference_backend_cutover() {
+    local self="$TIGER_INFERENCE_BACKEND" b c proj ok p removed="" remain="" want
+    # Our own container in an old project (renumber-migrate.sh not run) makes up collide: stop before removing anything.
+    want="$(_tiger_backend_projects "$self")"; want="${want%% *}"
+    for c in $(_tiger_backend_containers "$self"); do
+        docker container inspect "$c" >/dev/null 2>&1 || continue
+        proj="$(docker container inspect -f '{{index .Config.Labels "com.docker.compose.project"}}' "$c")"
+        if [ "$proj" = "$want" ]; then continue; fi
+        ok=""
+        for p in $(_tiger_backend_projects "$self"); do
+            if [ "$proj" = "$p" ]; then ok=1; fi
+        done
+        if [ -n "$ok" ]; then
+            ERROR "Container ${c} still belongs to the old compose project '${proj}' (new: ${want}). Run migrations/renumber-migrate.sh first. Nothing was changed."
+        fi
+        ERROR "Container ${c} belongs to compose project '${proj:-<none>}', not created by this stack, and would collide with ${want}. Remove it yourself (docker rm -f ${c}) and re-run. Nothing was changed."
+    done
+    [ "${TIGER_INFERENCE_BACKEND_EXPLICIT:-}" = "1" ] || return 0
+    # Check everything before touching anything: one container not created by this stack and nothing is removed.
+    for b in $TIGER_INFERENCE_BACKENDS_PRESENT; do
+        [ "$b" = "$self" ] && continue
+        for c in $(_tiger_backend_containers "$b"); do
+            docker container inspect "$c" >/dev/null 2>&1 || continue
+            proj="$(docker container inspect -f '{{index .Config.Labels "com.docker.compose.project"}}' "$c")"
+            ok=""
+            for p in $(_tiger_backend_projects "$b"); do
+                if [ "$proj" = "$p" ]; then ok=1; fi
+            done
+            [ -n "$ok" ] || ERROR "Container ${c} belongs to compose project '${proj:-<none>}', not created by this stack; left alone. If it is an old backend, remove it yourself (docker rm -f ${c}) and re-run. Nothing was changed."
+        done
+    done
+    for b in $TIGER_INFERENCE_BACKENDS_PRESENT; do
+        if [ "$b" = "$self" ]; then remain="$b"; continue; fi
+        WARN "INFERENCE_BACKEND=${self}: removing ${b} (models and volumes are kept)"
+        for c in $(_tiger_backend_containers "$b"); do
+            docker container inspect "$c" >/dev/null 2>&1 || continue
+            # rm, otherwise restart: always brings it back.
+            docker stop -t 30 "$c" >/dev/null && docker rm "$c" >/dev/null \
+                || ERROR "Removing container ${c} failed; fix it and re-run."
+            LOG "  REMOVED ${c}"
+        done
+        removed="${removed:+$removed }$b"
+    done
+    TIGER_INFERENCE_BACKENDS_PRESENT="$remain"
+    [ -n "$removed" ] || return 0
+    # shellcheck disable=SC2086  # one argument per backend name
+    _tiger_backend_print_data $removed
+}
+
+# Prints where the removed backends' models and volumes are (kept, and not in any backup).
+_tiger_backend_print_data() {
+    local b d vol mp
+    LOG "Removed: $*. Models and caches are kept; delete them yourself once no longer needed:"
+    for b in "$@"; do
+        case "$b" in
+            ollama)   d=/var/lib/ollama ;;
+            lemonade) d="${MODELS_DIR:-/home/wrt/TigerAI/models}" ;;
+        esac
+        if [ -d "$d" ]; then LOG "  $(du -sh "$d" 2>/dev/null | cut -f1)  ${d}"; fi
+        if [ "$b" = "lemonade" ]; then
+            while IFS= read -r vol; do
+                [ -n "$vol" ] || continue
+                mp="$(docker volume inspect -f '{{.Mountpoint}}' "$vol" 2>/dev/null)"
+                LOG "  $(du -sh "$mp" 2>/dev/null | cut -f1)  volume ${vol}"
+            done < <(docker volume ls -q --filter 'name=lemonade-' 2>/dev/null)
+        fi
+    done
 }
